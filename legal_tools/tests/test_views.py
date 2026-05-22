@@ -873,7 +873,8 @@ class ViewLegalCodeTest(TestCase):
         self.assertEqual(
             rsp.headers["Content-Type"], "text/markdown; charset=utf-8"
         )
-        self.assertIn("## Attribution 4.0 International", content)
+        self.assertIn("# Attribution 4.0 International\n", content)
+        self.assertNotIn("## Attribution 4.0 International", content)
         self.assertIn("Section 1", content)
         self.assertIn("(a) <u>Adapted Material</u>", content)
         self.assertNotIn("1. (a)", content)
@@ -897,7 +898,8 @@ class ViewLegalCodeTest(TestCase):
         content = rsp.content.decode("utf-8")
 
         self.assertEqual(f"{rsp.status_code} {url}", f"200 {url}")
-        self.assertIn("## Attribution 4.0 International", content)
+        self.assertIn("# Attribution 4.0 International\n", content)
+        self.assertNotIn("## Attribution 4.0 International", content)
 
     def test_view_legal_code_markdown_legacy_raw_html(self):
         legal_code = LegalCodeFactory(
@@ -920,7 +922,8 @@ class ViewLegalCodeTest(TestCase):
         self.assertEqual(
             rsp.headers["Content-Type"], "text/markdown; charset=utf-8"
         )
-        self.assertIn("## Legacy Title", content)
+        self.assertIn("# Legacy Title\n", content)
+        self.assertNotIn("## Legacy Title", content)
         self.assertIn("**Legacy** body", content)
 
     def test_view_legal_code_markdown_deed_only_404(self):
