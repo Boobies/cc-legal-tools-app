@@ -43,6 +43,7 @@ LOG_LEVELS = {
 # CNAME
 # https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site
 DOCS_IGNORE = [".nojekyll", "CNAME"]
+FILTER_LICENSE_VERSION_CHOICES = (1.0, 2.0, 2.1, 2.5, 3.0, 4.0)
 
 
 def wrap_relative_symlink(output_dir, relpath, symlink):
@@ -167,7 +168,7 @@ class Command(BaseCommand):
             "--filter-license-html",
             action="store",
             type=float,
-            choices=[1.0, 2.0, 2.1, 2.5, 3.0, 4.0],
+            choices=FILTER_LICENSE_VERSION_CHOICES,
             help="Only distill HTML files for specified license version",
             dest="filter_license_html",
         )
@@ -176,7 +177,7 @@ class Command(BaseCommand):
             "--filter-license-markdown",
             action="store",
             type=float,
-            choices=[1.0, 2.0, 2.1, 2.5, 3.0, 4.0],
+            choices=FILTER_LICENSE_VERSION_CHOICES,
             help="Only distill Markdown files for specified license version",
             dest="filter_license_markdown",
         )
