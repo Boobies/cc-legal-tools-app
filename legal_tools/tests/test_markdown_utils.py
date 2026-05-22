@@ -29,7 +29,7 @@ class MarkdownUtilsTest(SimpleTestCase):
         </main>
         """
         expected = (
-            "## Attribution 4.0 International\n\n"
+            "# Attribution 4.0 International\n\n"
             "<u>Adapted Material</u> means material described in "
             "[Section 1](#s1).\n\n"
             "(a) First item\n"
@@ -42,6 +42,20 @@ class MarkdownUtilsTest(SimpleTestCase):
         )
 
         self.assertEqual(expected, legal_code_html_to_markdown(html))
+
+    def test_legal_code_html_to_markdown_heading_levels(self):
+        html = """
+        <div id="legal-code-body">
+          <h1>Title</h1>
+          <h2>Section</h2>
+          <h3>Subsection</h3>
+        </div>
+        """
+
+        self.assertEqual(
+            "# Title\n\n# Section\n\n## Subsection\n",
+            legal_code_html_to_markdown(html),
+        )
 
     def test_legal_code_html_to_markdown_uppercase_list_and_strong(self):
         html = """

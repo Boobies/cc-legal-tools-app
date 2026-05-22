@@ -52,7 +52,7 @@ def _render_block(node):
     if tag_name in {"script", "style"}:
         return ""
     if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
-        level = int(tag_name[1])
+        level = max(int(tag_name[1]) - 1, 1)
         content = _render_inline_children(node)
         if content:
             return f"{'#' * level} {content}"
