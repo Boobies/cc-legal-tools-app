@@ -437,6 +437,38 @@ class LegalCodeModelTest(TestCase):
             returned_list,
         )
 
+    # get_markdown_publish_files legal code ##################################
+
+    def test_get_markdown_publish_files_by_nc_nd4_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by-nc-nd",
+            tool__version="4.0",
+            language_code="en",
+        )
+
+        returned_list = legal_code.get_markdown_publish_files()
+
+        self.assertEqual(
+            "licenses/by-nc-nd/4.0/legalcode.en.md",
+            returned_list,
+        )
+
+    def test_get_markdown_publish_files_by_nc_nd4_legal_code_zh_hant(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by-nc-nd",
+            tool__version="4.0",
+            language_code="zh-hant",
+        )
+
+        returned_list = legal_code.get_markdown_publish_files()
+
+        self.assertEqual(
+            "licenses/by-nc-nd/4.0/legalcode.zh-hant.md",
+            returned_list,
+        )
+
     # get_publish_files Mark 1.0 legal code ##################################
     # Mark 1.0 is a universal (unported) deed-only declaration
 
@@ -479,6 +511,19 @@ class LegalCodeModelTest(TestCase):
             ],
             returned_list,
         )
+
+    def test_get_markdown_publish_files_mark_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="publicdomain",
+            tool__deed_only=True,
+            tool__unit="mark",
+            tool__version="1.0",
+            language_code="en",
+        )
+
+        returned_list = legal_code.get_markdown_publish_files()
+
+        self.assertIsNone(returned_list)
 
     # get_redirect_pairs #####################################################
 

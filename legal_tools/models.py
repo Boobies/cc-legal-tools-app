@@ -297,6 +297,21 @@ class LegalCode(models.Model):
 
         return [relpath, symlinks, redirects_data]
 
+    def get_markdown_publish_files(self):
+        """
+        Generate relative path for legal code Markdown files.
+        """
+        language_code = self.language_code
+        tool = self.tool
+        filename = f"legalcode.{language_code}.md"
+
+        if tool.deed_only:
+            relpath = None
+        else:
+            relpath = os.path.join(tool._get_save_path(), filename)
+
+        return relpath
+
     def get_redirect_pairs(self):
         language_code = self.language_code
         tool = self.tool

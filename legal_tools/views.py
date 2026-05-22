@@ -20,6 +20,7 @@ from i18n.utils import (
     load_deeds_ux_translations,
     map_django_to_transifex_language_code,
 )
+from legal_tools.markdown_utils import legal_code_html_to_markdown
 from legal_tools.models import (
     UNITS_LICENSES,
     LegalCode,
@@ -395,8 +396,11 @@ def view_legal_code(
     jurisdiction=None,
     language_code=None,
     is_plain_text=False,
+    is_markdown=False,
 ):
     plain_text_url = None
+    if is_markdown and request.path.endswith(".md"):
+        request.path = request.path[:-3]
     request.path, language_code = normalize_path_and_lang(
         request.path, jurisdiction, language_code
     )
@@ -435,6 +439,8 @@ def view_legal_code(
     else:
         translation.activate(settings.LANGUAGE_CODE)
     tool = legal_code.tool
+    if is_markdown and tool.deed_only:
+        raise Http404("Markdown legalcode does not exist for deed-only tools")
 
     # get_tool_title manipulates the translation domain and, therefore, MUST
     # be called before we Activate Legal Code translation
@@ -472,6 +478,10 @@ def view_legal_code(
 
         if tool.identifier() in PLAIN_TEXT_TOOL_IDENTIFIERS:
             plain_text_url = "legalcode.txt"
+        if tool.deed_only:
+            markdown_url = None
+        else:
+            markdown_url = f"legalcode.{language_code}.md"
 
         canonical_url_html = os.path.join(
             settings.CANONICAL_SITE, request.path.lstrip(os.sep)
@@ -493,6 +503,7 @@ def view_legal_code(
                 "legal_code": legal_code,
                 "list_licenses": list_licenses,
                 "list_publicdomain": list_publicdomain,
+                "markdown_url": markdown_url,
                 "plain_text_url": plain_text_url,
                 "replaced_path": replaced_path,
                 "replaced_title": replaced_title,
@@ -527,6 +538,18 @@ def view_legal_code(
         #         response.write(output.stdout)
         #         return response
         #
+        if is_markdown:
+            html_content = render_to_string(
+                template_name="legalcode_body.html",
+                context=kwargs["context"],
+                request=request,
+            )
+            markdown_content = legal_code_html_to_markdown(html_content)
+            return HttpResponse(
+                markdown_content,
+                content_type="text/markdown; charset=utf-8",
+            )
+
         html_response = render(request, **kwargs)
         html_response.content = pretty_html_bytes(
             request.path, html_response.content
