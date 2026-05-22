@@ -114,6 +114,19 @@ def save_legal_code(output_dir, legal_code, opt_filter_apache_redirects):
     return legal_code.get_redirect_pairs()
 
 
+def save_legal_code_markdown(output_dir, legal_code):
+    # Function is at top level of module so that it can be pickled by
+    # multiprocessing.
+    relpath = legal_code.get_markdown_publish_files()
+    if relpath:
+        # Deed-only tools will not return a legal code Markdown relpath
+        save_url_as_static_file(
+            output_dir,
+            url=f"{legal_code.legal_code_url}.md",
+            relpath=relpath,
+        )
+
+
 def save_rdf(output_dir, tool):
     # Function is at top level of module so that it can be pickled by
     # multiprocessing.
@@ -157,6 +170,15 @@ class Command(BaseCommand):
             choices=[1.0, 2.0, 2.1, 2.5, 3.0, 4.0],
             help="Only distill HTML files for specified license version",
             dest="filter_license_html",
+        )
+        filter_args.add_argument(
+            "--fm",
+            "--filter-license-markdown",
+            action="store",
+            type=float,
+            choices=[1.0, 2.0, 2.1, 2.5, 3.0, 4.0],
+            help="Only distill Markdown files for specified license version",
+            dest="filter_license_markdown",
         )
         filter_args.add_argument(
             "--fr",
@@ -392,14 +414,19 @@ class Command(BaseCommand):
                 if group != f"Licenses {options['filter_license_html']}":
                     continue
                 LOG.info(f"Distilling {group} deed/legal code HTML")
+            elif options["filter_license_markdown"]:
+                if group != f"Licenses {options['filter_license_markdown']}":
+                    continue
+                LOG.info(f"Distilling {group} legal code Markdown")
             elif options["filter_rdfxml"]:
                 LOG.info(f"Distilling {group} legal code RDF/XML")
             else:
                 LOG.info(
                     f"Distilling {group} deed/legal code HTML and legal code"
-                    " RDF/XML"
+                    " Markdown/RDF/XML"
                 )
             legal_code_arguments = []
+            markdown_arguments = []
             deed_arguments = []
             rdf_arguments = []
             for legal_code in legal_codes[group]:
@@ -411,6 +438,7 @@ class Command(BaseCommand):
                         options["filter_apache_redirects"],
                     )
                 )
+                markdown_arguments.append((output_dir, legal_code))
             for tool in tools:
                 for language_code in settings.LANGUAGES_MOSTLY_TRANSLATED:
                     deed_arguments.append(
@@ -435,15 +463,24 @@ class Command(BaseCommand):
                     )
 
             if not options["filter_rdfxml"]:
-                redirect_pairs_data += self.pool.starmap(
-                    save_deed, deed_arguments
-                )
-                redirect_pairs_data += self.pool.starmap(
-                    save_legal_code, legal_code_arguments
-                )
+                if not options["filter_license_markdown"]:
+                    redirect_pairs_data += self.pool.starmap(
+                        save_deed, deed_arguments
+                    )
+                    redirect_pairs_data += self.pool.starmap(
+                        save_legal_code, legal_code_arguments
+                    )
+                if not (
+                    options["filter_apache_redirects"]
+                    or options["filter_license_html"]
+                ):
+                    self.pool.starmap(
+                        save_legal_code_markdown, markdown_arguments
+                    )
             if (
                 not options["filter_apache_redirects"]
                 and not options["filter_license_html"]
+                and not options["filter_license_markdown"]
             ):
                 self.pool.starmap(save_rdf, rdf_arguments)
 
@@ -612,6 +649,9 @@ class Command(BaseCommand):
             options["run"]["pool_distill_legal_tools"] = True
         # Filter licenses HTML
         elif options["filter_license_html"]:
+            options["run"]["pool_distill_legal_tools"] = True
+        # Filter licenses Markdown
+        elif options["filter_license_markdown"]:
             options["run"]["pool_distill_legal_tools"] = True
         # Filter RDF/XML
         elif options["filter_rdfxml"]:

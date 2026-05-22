@@ -261,6 +261,40 @@ urlpatterns = [
     #     kwargs=dict(jurisdiction="", is_plain_text=True),
     #     name="view_legal_code_unported",
     # ),
+    # Markdown Legalcode: with Jurisdiction (ported), with language_code
+    path(
+        "<category:category>/<unit:unit>/<version:version>"
+        "/<jurisdiction:jurisdiction>/legalcode"
+        ".<language_code:language_code>.md",
+        view_legal_code,
+        kwargs=dict(is_markdown=True),
+        name="view_legal_code_markdown_ported_language_specified",
+    ),
+    # Markdown Legalcode: with Jurisdiction (ported), no language_code
+    path(
+        "<category:category>/<unit:unit>/<version:version>"
+        "/<jurisdiction:jurisdiction>/legalcode.md",
+        view_legal_code,
+        kwargs=dict(is_markdown=True),
+        name="view_legal_code_markdown_ported",
+    ),
+    # Markdown Legalcode: no Jurisdiction (international/unported),
+    # with language_code
+    path(
+        "<category:category>/<unit:unit>/<version:version>/legalcode"
+        ".<language_code:language_code>.md",
+        view_legal_code,
+        kwargs=dict(jurisdiction="", is_markdown=True),
+        name="view_legal_code_markdown_unported_language_specified",
+    ),
+    # Markdown Legalcode: no Jurisdiction (international/unported),
+    # no language_code
+    path(
+        "<category:category>/<unit:unit>/<version:version>/legalcode.md",
+        view_legal_code,
+        kwargs=dict(jurisdiction="", is_markdown=True),
+        name="view_legal_code_markdown_unported",
+    ),
     # Legalcode: with Jurisdiction (ported), with language_code
     path(
         "<category:category>/<unit:unit>/<version:version>"
