@@ -32,13 +32,16 @@ class MarkdownUtilsTest(SimpleTestCase):
             "# Attribution 4.0 International\n\n"
             "<u>Adapted Material</u> means material described in "
             "[Section 1](#s1).\n\n"
-            "(a) First item\n"
-            "\n"
-            "(b) Second item\n"
-            "\n"
-            "&nbsp;&nbsp;&nbsp;&nbsp;(i) Nested item\n"
-            "\n"
-            "&nbsp;&nbsp;&nbsp;&nbsp;(ii) Second nested item\n"
+            '<ol type="a">\n'
+            "<li>First item</li>\n"
+            "<li>\n"
+            "Second item\n"
+            '<ol type="i">\n'
+            "<li>Nested item</li>\n"
+            "<li>Second nested item</li>\n"
+            "</ol>\n"
+            "</li>\n"
+            "</ol>\n"
         )
 
         self.assertEqual(expected, legal_code_html_to_markdown(html))
@@ -67,7 +70,9 @@ class MarkdownUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "(A) **Notice** must be retained.\n",
+            '<ol type="A">\n'
+            "<li><strong>Notice</strong> must be retained.</li>\n"
+            "</ol>\n",
             legal_code_html_to_markdown(html),
         )
 
@@ -82,7 +87,10 @@ class MarkdownUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "1. First decimal item.\n2. Second decimal item.\n",
+            "<ol>\n"
+            "<li>First decimal item.</li>\n"
+            "<li>Second decimal item.</li>\n"
+            "</ol>\n",
             legal_code_html_to_markdown(html),
         )
 
@@ -102,9 +110,14 @@ class MarkdownUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "(a) Parent item\n\n"
-            "&nbsp;&nbsp;&nbsp;&nbsp;1. Nested decimal item.\n"
-            "\n"
-            "&nbsp;&nbsp;&nbsp;&nbsp;2. Second nested decimal item.\n",
+            '<ol type="a">\n'
+            "<li>\n"
+            "Parent item\n"
+            "<ol>\n"
+            "<li>Nested decimal item.</li>\n"
+            "<li>Second nested decimal item.</li>\n"
+            "</ol>\n"
+            "</li>\n"
+            "</ol>\n",
             legal_code_html_to_markdown(html),
         )
