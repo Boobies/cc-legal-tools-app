@@ -1,5 +1,6 @@
 # Standard library
 import re
+import textwrap
 from html import escape
 
 # Third-party
@@ -22,6 +23,7 @@ BLOCK_TAGS = {
     "section",
     "ul",
 }
+MARKDOWN_LINE_LENGTH = 80
 
 
 def legal_code_html_to_markdown(html):
@@ -45,7 +47,7 @@ def _render_block(node):
     if _is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
-        return _clean_inline(str(node))
+        return _wrap_markdown_text(_clean_inline(str(node)))
     if not isinstance(node, Tag):
         return ""
 
@@ -59,12 +61,12 @@ def _render_block(node):
             return f"{'#' * level} {content}"
         return ""
     if tag_name == "p":
-        return _render_inline_children(node)
+        return _wrap_markdown_text(_render_inline_children(node))
     if tag_name == "ol" or tag_name == "ul":
         return _render_list(node)
     if _has_direct_block_child(node):
         return _render_block_children(node)
-    return _render_inline_children(node)
+    return _wrap_markdown_text(_render_inline_children(node))
 
 
 def _render_block_children(node):
@@ -84,7 +86,9 @@ def _render_list(list_tag):
         content = _render_html_list_item(list_item)
         if not content:
             lines.append("<li></li>")
-        elif "\n" in content:
+        elif "\n" in content or len(f"<li>{content}</li>") > (
+            MARKDOWN_LINE_LENGTH
+        ):
             lines.append("<li>")
             lines.extend(content.splitlines())
             lines.append("</li>")
@@ -123,7 +127,7 @@ def _render_html_list_item(list_item):
         content = _render_html_inline_nodes(inline_nodes)
         inline_nodes.clear()
         if content:
-            chunks.append(content)
+            chunks.append(_wrap_html_text(content))
 
     for child in list_item.children:
         if _is_ignorable(child):
@@ -148,7 +152,7 @@ def _render_html_block(node):
     if _is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
-        return escape(_clean_inline(str(node)), quote=False)
+        return _wrap_html_text(escape(_clean_inline(str(node)), quote=False))
     if not isinstance(node, Tag):
         return ""
 
@@ -167,14 +171,15 @@ def _render_html_block(node):
             if (rendered := _render_html_block(child).strip())
         )
     else:
-        content = _render_html_inline_children(node)
+        content = _wrap_html_text(_render_html_inline_children(node))
     return _wrap_html_tag(tag_name, content)
 
 
 def _wrap_html_tag(tag_name, content):
-    if "\n" in content:
+    tag_content = f"<{tag_name}>{content}</{tag_name}>"
+    if "\n" in content or len(tag_content) > MARKDOWN_LINE_LENGTH:
         return f"<{tag_name}>\n{content}\n</{tag_name}>"
-    return f"<{tag_name}>{content}</{tag_name}>"
+    return tag_content
 
 
 def _render_html_inline_nodes(nodes):
@@ -257,6 +262,23 @@ def _render_inline(node):
 def _render_inline_children(node):
     return _clean_inline(
         "".join(_render_inline(child) for child in node.children)
+    )
+
+
+def _wrap_markdown_text(value):
+    return _wrap_text(value)
+
+
+def _wrap_html_text(value):
+    return _wrap_text(value)
+
+
+def _wrap_text(value):
+    return textwrap.fill(
+        value,
+        width=MARKDOWN_LINE_LENGTH,
+        break_long_words=False,
+        break_on_hyphens=False,
     )
 
 
