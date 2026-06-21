@@ -540,7 +540,7 @@ def view_legal_code(
         #
         if is_markdown:
             html_content = render_to_string(
-                template_name="legalcode_body.html",
+                template_name="legalcode_document.html",
                 context=kwargs["context"],
                 request=request,
             )

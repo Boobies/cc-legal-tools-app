@@ -873,13 +873,20 @@ class ViewLegalCodeTest(TestCase):
         self.assertEqual(
             rsp.headers["Content-Type"], "text/markdown; charset=utf-8"
         )
-        self.assertIn("# Attribution 4.0 International\n", content)
-        self.assertNotIn("## Attribution 4.0 International", content)
-        self.assertIn("Section 1", content)
-        self.assertIn("(a) <u>Adapted Material</u>", content)
+        lines = content.splitlines()
+        self.assertEqual("# Attribution 4.0 International", lines[0])
+        self.assertEqual(1, lines.count("# Attribution 4.0 International"))
+        self.assertEqual(1, lines.count("## Attribution 4.0 International"))
+        self.assertIn("### Section 1", content)
+        self.assertIn("<u>Adapted Material</u> means", content)
         self.assertNotIn("1. (a)", content)
         self.assertNotIn("<html", content)
-        self.assertNotIn("About the license and Creative Commons", content)
+        self.assertIn("## About the license and Creative Commons", content)
+        self.assertIn("## Using Creative Commons Public Licenses", content)
+        self.assertIn("### Considerations for licensors", content)
+        self.assertIn("### Considerations for the public", content)
+        self.assertIn("## About Creative Commons", content)
+        self.assertNotIn("Learn more about our work", content)
 
     def test_view_legal_code_markdown_40_default_language(self):
         tool = ToolFactory(
@@ -898,8 +905,10 @@ class ViewLegalCodeTest(TestCase):
         content = rsp.content.decode("utf-8")
 
         self.assertEqual(f"{rsp.status_code} {url}", f"200 {url}")
-        self.assertIn("# Attribution 4.0 International\n", content)
-        self.assertNotIn("## Attribution 4.0 International", content)
+        lines = content.splitlines()
+        self.assertEqual("# Attribution 4.0 International", lines[0])
+        self.assertEqual(1, lines.count("# Attribution 4.0 International"))
+        self.assertEqual(1, lines.count("## Attribution 4.0 International"))
 
     def test_view_legal_code_markdown_legacy_raw_html(self):
         legal_code = LegalCodeFactory(
@@ -922,9 +931,15 @@ class ViewLegalCodeTest(TestCase):
         self.assertEqual(
             rsp.headers["Content-Type"], "text/markdown; charset=utf-8"
         )
-        self.assertIn("# Legacy Title\n", content)
-        self.assertNotIn("## Legacy Title", content)
+        lines = content.splitlines()
+        self.assertEqual("# Namensnennung 3.0 Deutschland", lines[0])
+        self.assertEqual(1, lines.count("# Namensnennung 3.0 Deutschland"))
+        self.assertEqual(0, lines.count("# Legacy Title"))
+        self.assertEqual(1, lines.count("## Legacy Title"))
         self.assertIn("**Legacy** body", content)
+        self.assertIn("## About Creative Commons", content)
+        self.assertNotIn("About the license and Creative Commons", content)
+        self.assertNotIn("Using Creative Commons Public Licenses", content)
 
     def test_view_legal_code_markdown_deed_only_404(self):
         legal_code = LegalCodeFactory(

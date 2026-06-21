@@ -23,20 +23,21 @@ BLOCK_TAGS = {
     "section",
     "ul",
 }
-MARKDOWN_LINE_LENGTH = 80
+MARKDOWN_LINE_LENGTH = 70
 
 
 def legal_code_html_to_markdown(html):
     """
-    Convert rendered legalcode body HTML to Markdown.
+    Convert rendered legalcode document/body HTML to Markdown.
 
     The converter is intentionally small and legalcode-focused. It emits lists
     as raw HTML blocks so CommonMark preserves ordered-list semantics such as
     alpha and roman markers without us recreating list numbering.
     """
     soup = BeautifulSoup(html, "lxml")
+    legal_code_document = soup.find(id="legal-code-document")
     legal_code_body = soup.find(id="legal-code-body")
-    root = legal_code_body or soup.body or soup
+    root = legal_code_document or legal_code_body or soup.body or soup
     markdown = _render_block(root).strip()
     if not markdown:
         return ""
@@ -55,7 +56,7 @@ def _render_block(node):
     if tag_name in {"script", "style"}:
         return ""
     if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
-        level = max(int(tag_name[1]) - 1, 1)
+        level = int(tag_name[1])
         content = _render_inline_children(node)
         if content:
             return f"{'#' * level} {content}"
