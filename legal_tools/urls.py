@@ -19,7 +19,6 @@ from legal_tools.views import (
     view_deed,
     view_dev_index,
     view_image_rdf,
-    view_legacy_plaintext,
     view_legal_code,
     view_legal_tool_rdf,
     view_list,
@@ -247,20 +246,24 @@ urlpatterns = [
         name="view_deed_unported",
     ),
     # LEGALCODE PAGES #########################################################
-    # Legalcode: plain text
+    # Plaintext Legalcode: with Jurisdiction (ported), with language_code
     path(
-        "<category:category>/<unit:unit>/<version:version>/legalcode.txt",
-        view_legacy_plaintext,
-        name="view_legacy_plaintext",
+        "<category:category>/<unit:unit>/<version:version>"
+        "/<jurisdiction:jurisdiction>/legalcode"
+        ".<language_code:language_code>.txt",
+        view_legal_code,
+        kwargs=dict(is_plain_text=True),
+        name="view_legal_code_plaintext_ported_language_specified",
     ),
-    # NOTE: programmatic plaintext functionality disabled
-    # # Plaintext Legalcode: no Jurisdiction (int/unported), no language_code
-    # path(
-    #     "<category:category>/<unit:unit>/<version:version>/legalcode.txt",
-    #     view_legal_code,
-    #     kwargs=dict(jurisdiction="", is_plain_text=True),
-    #     name="view_legal_code_unported",
-    # ),
+    # Plaintext Legalcode: no Jurisdiction (international/unported),
+    # with language_code
+    path(
+        "<category:category>/<unit:unit>/<version:version>/legalcode"
+        ".<language_code:language_code>.txt",
+        view_legal_code,
+        kwargs=dict(jurisdiction="", is_plain_text=True),
+        name="view_legal_code_plaintext_unported_language_specified",
+    ),
     # Markdown Legalcode: with Jurisdiction (ported), with language_code
     path(
         "<category:category>/<unit:unit>/<version:version>"

@@ -525,6 +525,88 @@ class LegalCodeModelTest(TestCase):
 
         self.assertIsNone(returned_list)
 
+    # get_plaintext_publish_file legal code ##################################
+
+    def test_get_plaintext_publish_file_by4_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by",
+            tool__version="4.0",
+            language_code="en",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertEqual("licenses/by/4.0/legalcode.en.txt", returned_path)
+
+    def test_get_plaintext_publish_file_by4_legal_code_zh_hant(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by",
+            tool__version="4.0",
+            language_code="zh-hant",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertEqual(
+            "licenses/by/4.0/legalcode.zh-hant.txt",
+            returned_path,
+        )
+
+    def test_get_plaintext_publish_file_by3_ported_legal_code_de(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by",
+            tool__version="3.0",
+            tool__jurisdiction_code="de",
+            language_code="de",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertEqual("licenses/by/3.0/de/legalcode.de.txt", returned_path)
+
+    def test_get_plaintext_publish_file_by2_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="licenses",
+            tool__unit="by",
+            tool__version="2.0",
+            language_code="en",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertEqual("licenses/by/2.0/legalcode.en.txt", returned_path)
+
+    def test_get_plaintext_publish_file_zero_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="publicdomain",
+            tool__unit="zero",
+            tool__version="1.0",
+            language_code="en",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertEqual(
+            "publicdomain/zero/1.0/legalcode.en.txt",
+            returned_path,
+        )
+
+    def test_get_plaintext_publish_file_mark_legal_code_en(self):
+        legal_code = LegalCodeFactory(
+            tool__category="publicdomain",
+            tool__deed_only=True,
+            tool__unit="mark",
+            tool__version="1.0",
+            language_code="en",
+        )
+
+        returned_path = legal_code.get_plaintext_publish_file()
+
+        self.assertIsNone(returned_path)
+
     # get_redirect_pairs #####################################################
 
     def test_get_redirect_pairs(self):
