@@ -74,7 +74,11 @@ def _render_document(document):
         if _is_ignorable(child):
             continue
         region = _document_region(child)
-        rendered = _render_block(child).strip("\n")
+        rendered = _render_block(child)
+        if _preserves_trailing_spacing(child):
+            rendered = rendered.lstrip("\n")
+        else:
+            rendered = rendered.strip("\n")
         if not rendered.strip():
             continue
         if current_region is not None and region != current_region:
@@ -110,12 +114,16 @@ def _render_block(node, indent=0):
     tag_name = node.name.lower()
     if tag_name in {"script", "style", "hr"}:
         return ""
+    if _is_skipped_notice_heading(node):
+        return ""
     if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name == "p":
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name in {"ol", "ul"}:
         return _render_list(node, indent=indent)
+    if node.get("id") == "legal-code-body":
+        return _render_legal_code_body(node, indent=indent)
     if node.get("id") == "about-cc-and-license":
         return _render_about_cc_and_license(node, indent=indent)
     if _has_direct_block_child(node):
@@ -134,6 +142,42 @@ def _render_block_nodes(nodes, indent=0):
         if rendered.strip():
             chunks.append(rendered)
     return "\n\n".join(chunks)
+
+
+def _render_legal_code_body(node, indent=0):
+    chunks = []
+    for is_section, group in _legal_code_body_groups(node):
+        rendered = _render_block_nodes(group, indent=indent).strip("\n")
+        if not rendered.strip():
+            continue
+        if is_section:
+            rendered = f"{rendered}\n"
+        chunks.append(rendered)
+    return "\n\n".join(chunks)
+
+
+def _legal_code_body_groups(node):
+    groups = []
+    current_group = []
+    current_is_section = False
+
+    def flush_group():
+        nonlocal current_group
+        if current_group:
+            groups.append((current_is_section, current_group))
+            current_group = []
+
+    for child in node.children:
+        if _is_ignorable(child):
+            continue
+        if _is_legal_section_heading(child):
+            flush_group()
+            current_group = [child]
+            current_is_section = True
+        else:
+            current_group.append(child)
+    flush_group()
+    return groups
 
 
 def _render_about_cc_and_license(node, indent=0):
@@ -463,6 +507,24 @@ def _has_class(node, class_name):
 
 def _is_divider(node):
     return _is_tag(node, "hr") and _has_class(node, "divider")
+
+
+def _is_legal_section_heading(node):
+    return _is_tag(node, "h3") and re.fullmatch(r"s\d+", node.get("id", ""))
+
+
+def _is_skipped_notice_heading(node):
+    if not _is_tag(node, "h2"):
+        return False
+    parent = node.parent
+    return isinstance(parent, Tag) and parent.get("id") in {
+        "notice-about-licenses-and-cc",
+        "notice-about-cc-and-trademark",
+    }
+
+
+def _preserves_trailing_spacing(node):
+    return isinstance(node, Tag) and node.get("id") == "legal-code-body"
 
 
 def _is_ignorable(node):

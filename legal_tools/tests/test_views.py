@@ -1505,8 +1505,17 @@ class ViewLegalCodePlaintext(ToolsTestsMixin, TestCase):
         self.assertEqual("Attribution 4.0 International", lines[0])
         self.assertEqual(3, lines.count("=" * 71))
         self.assertEqual(2, lines.count("Attribution 4.0 International"))
-        self.assertIn("About the license and Creative Commons", content)
+        self.assertNotIn("About the license and Creative Commons", content)
+        self.assertNotIn("About Creative Commons", content)
         self.assertIn("Using Creative Commons Public Licenses", content)
+        self.assertIn(
+            'Creative Commons Corporation ("Creative Commons") is not a law',
+            content,
+        )
+        self.assertIn(
+            "Creative Commons public licenses provide a standard set of terms",
+            content,
+        )
         self.assertIn("  a. Adapted Material means", content)
 
     def test_view_plaintext_translated_file_exists(self):

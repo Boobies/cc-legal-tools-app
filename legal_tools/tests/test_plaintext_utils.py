@@ -13,11 +13,11 @@ class PlainTextUtilsTest(SimpleTestCase):
         html = """
         <div id="legal-code-document">
           <h1>Document Title</h1>
-          <div class="notice-top">
+          <div id="notice-about-licenses-and-cc" class="notice-top">
             <h2>About</h2>
             <p>Preface text.</p>
           </div>
-          <div class="notice-top">
+          <div id="about-cc-and-license" class="notice-top">
             <h2>Using</h2>
             <p>More preface text.</p>
             <hr class="divider">
@@ -28,7 +28,7 @@ class PlainTextUtilsTest(SimpleTestCase):
             <h2>Body Title</h2>
             <p>Body text.</p>
           </div>
-          <div class="notice-bottom">
+          <div id="notice-about-cc-and-trademark" class="notice-bottom">
             <h2>Footer</h2>
             <p>Footer text.</p>
           </div>
@@ -38,18 +38,66 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(
             "Document Title\n\n"
             f"{PLAIN_TEXT_SEPARATOR}\n\n"
-            "About\n\n"
             "Preface text.\n\n"
             "Using\n\n"
             "More preface text.\n\n"
-            "Internal\n\n"
-            "Internal notice text.\n\n"
+            "     Internal: Internal notice text.\n\n"
             f"{PLAIN_TEXT_SEPARATOR}\n\n"
             "Body Title\n\n"
             "Body text.\n\n"
             f"{PLAIN_TEXT_SEPARATOR}\n\n"
-            "Footer\n\n"
             "Footer text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_legal_section_spacing(self):
+        html = """
+        <div id="legal-code-document">
+          <h1>Document Title</h1>
+          <div id="legal-code-body">
+            <h2 id="legal-code-title">Body Title</h2>
+            <p>Intro text.</p>
+            <h3 id="s1">Section 1 – Definitions.</h3>
+            <p>First section text.</p>
+            <h3 id="s2">Section 2 – Scope.</h3>
+            <p>Second section text.</p>
+          </div>
+          <div id="notice-about-cc-and-trademark" class="notice-bottom">
+            <h2>Footer</h2>
+            <p>Footer text.</p>
+          </div>
+        </div>
+        """
+
+        self.assertEqual(
+            "Document Title\n\n"
+            f"{PLAIN_TEXT_SEPARATOR}\n\n"
+            "Body Title\n\n"
+            "Intro text.\n\n"
+            "Section 1 -- Definitions.\n\n"
+            "First section text.\n\n\n"
+            "Section 2 -- Scope.\n\n"
+            "Second section text.\n\n\n"
+            f"{PLAIN_TEXT_SEPARATOR}\n\n"
+            "Footer text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_non_section_heading_spacing(self):
+        html = """
+        <div id="legal-code-body">
+          <h3 id="topic">Topic</h3>
+          <p>Topic text.</p>
+          <h3>Another Topic</h3>
+          <p>Another text.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Topic\n\n"
+            "Topic text.\n\n"
+            "Another Topic\n\n"
+            "Another text.\n",
             legal_code_html_to_plain_text(html),
         )
 
