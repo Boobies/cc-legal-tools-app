@@ -221,8 +221,30 @@ class PlainTextUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "  1. Parent item\n"
+            "  1. Parent item\n\n"
             "       i. Nested item\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_list_item_block_spacing(self):
+        html = """
+        <div id="legal-code-body">
+          <ol>
+            <li>
+              Intro
+              <ol>
+                <li>Nested item</li>
+              </ol>
+              Tail
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  1. Intro\n\n"
+            "       1. Nested item\n\n"
+            "     Tail\n",
             legal_code_html_to_plain_text(html),
         )
 
@@ -230,13 +252,15 @@ class PlainTextUtilsTest(SimpleTestCase):
         html = """
         <div id="legal-code-body">
           <ul>
-            <li>Bullet item</li>
+            <li>First bullet item</li>
+            <li>Second bullet item</li>
           </ul>
         </div>
         """
 
         self.assertEqual(
-            "   - Bullet item\n",
+            "   - First bullet item\n\n"
+            "   - Second bullet item\n",
             legal_code_html_to_plain_text(html),
         )
 

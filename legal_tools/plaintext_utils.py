@@ -268,13 +268,20 @@ def _render_list(list_tag, indent=0):
             rendered_items.append(
                 "\n".join(_render_list_item(prefix, content_indent, chunks))
             )
-    separator = "\n\n" if is_ordered else "\n"
-    return separator.join(rendered_items)
+    return "\n\n".join(rendered_items)
 
 
 def _render_list_item(prefix, content_indent, chunks):
     lines = []
+    previous_kind = None
     for index, (kind, content) in enumerate(chunks):
+        if (
+            index > 0
+            and (kind == "block" or previous_kind == "block")
+            and lines
+            and lines[-1] != ""
+        ):
+            lines.append("")
         if kind == "text":
             if index == 0:
                 rendered = _wrap_text(
@@ -289,6 +296,7 @@ def _render_list_item(prefix, content_indent, chunks):
             if index == 0:
                 lines.append(prefix.rstrip())
             lines.extend(content.splitlines())
+        previous_kind = kind
     return lines
 
 
