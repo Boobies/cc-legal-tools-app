@@ -269,6 +269,18 @@ class PlainTextUtilsTest(SimpleTestCase):
             legal_code_html_to_plain_text(html),
         )
 
+    def test_legal_code_html_to_plain_text_replaces_curly_quotes(self):
+        html = """
+        <div id="legal-code-body">
+          <p>The licensor’s “request” is reasonable.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            'The licensor\'s "request" is reasonable.\n',
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_does_not_wrap_after_en_dash(self):
         html = """
         <div id="legal-code-body">
@@ -297,6 +309,34 @@ class PlainTextUtilsTest(SimpleTestCase):
 
         self.assertIn(
             "CC-\nlicensed",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_bold_style_uppercase(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li style="font-weight: bold;">
+              <strong>Unless otherwise undertaken.</strong>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  a. UNLESS OTHERWISE UNDERTAKEN.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_strong_not_uppercase(self):
+        html = """
+        <div id="legal-code-body">
+          <p><strong>Your</strong> has a corresponding meaning.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Your has a corresponding meaning.\n",
             legal_code_html_to_plain_text(html),
         )
 

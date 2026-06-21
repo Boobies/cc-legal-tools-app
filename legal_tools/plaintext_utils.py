@@ -329,6 +329,8 @@ def _render_list_item_chunks(list_item, content_indent):
         else:
             inline_nodes.append(child)
     flush_inline_nodes()
+    if _has_bold_font_weight(list_item):
+        chunks = [(kind, content.upper()) for kind, content in chunks]
     return chunks
 
 
@@ -432,6 +434,8 @@ def _render_inline(node):
     content = _render_inline_children(node)
     if not content:
         return ""
+    if _has_bold_font_weight(node):
+        content = content.upper()
 
     if tag_name == "a":
         href = node.get("href")
@@ -472,6 +476,9 @@ def _wrap_text(
 
 def _clean_inline(value):
     value = value.replace("\u2013", EN_DASH_PLACEHOLDER)
+    value = value.replace("\u2019", "'")
+    value = value.replace("\u201c", '"')
+    value = value.replace("\u201d", '"')
     value = re.sub(r"\s+", " ", value)
     value = re.sub(r"\s+([,.;:!?%)\]])", r"\1", value)
     value = re.sub(r"([(\[])\s+", r"\1", value)
@@ -521,6 +528,15 @@ def _is_skipped_notice_heading(node):
         "notice-about-licenses-and-cc",
         "notice-about-cc-and-trademark",
     }
+
+
+def _has_bold_font_weight(node):
+    if not isinstance(node, Tag):
+        return False
+    style = node.get("style", "")
+    return bool(
+        re.search(r"(?:^|;)\s*font-weight\s*:\s*bold\s*(?:;|$)", style, re.I)
+    )
 
 
 def _preserves_trailing_spacing(node):
