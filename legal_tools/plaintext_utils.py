@@ -10,6 +10,8 @@ PLAIN_TEXT_LINE_LENGTH = 71
 PLAIN_TEXT_SEPARATOR = "=" * PLAIN_TEXT_LINE_LENGTH
 LIST_INDENT = 5
 LIST_MARKER_WIDTH = 3
+NOTICE_ASIDE_INDENT = 5
+EN_DASH_PLACEHOLDER = "\ue000\ue001"
 
 BLOCK_TAGS = {
     "article",
@@ -51,6 +53,7 @@ def legal_code_html_to_plain_text(html):
         plain_text = _render_block(root).strip("\n")
     if not plain_text:
         return ""
+    plain_text = _restore_plain_text_tokens(plain_text)
     return f"{plain_text}\n"
 
 
@@ -113,28 +116,106 @@ def _render_block(node, indent=0):
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name in {"ol", "ul"}:
         return _render_list(node, indent=indent)
+    if node.get("id") == "about-cc-and-license":
+        return _render_about_cc_and_license(node, indent=indent)
     if _has_direct_block_child(node):
         return _render_block_children(node, indent=indent)
     return _wrap_text(_render_inline_children(node), indent=indent)
 
 
 def _render_block_children(node, indent=0):
+    return _render_block_nodes(node.children, indent=indent)
+
+
+def _render_block_nodes(nodes, indent=0):
     chunks = []
-    for child in node.children:
+    for child in nodes:
         rendered = _render_block(child, indent=indent).strip("\n")
         if rendered.strip():
             chunks.append(rendered)
     return "\n\n".join(chunks)
 
 
+def _render_about_cc_and_license(node, indent=0):
+    chunks = []
+    for after_divider, group in _divider_groups(node):
+        if not group:
+            continue
+        if after_divider and _is_tag(group[0], "h3"):
+            rendered = _render_notice_aside(group, indent=indent)
+        else:
+            rendered = _render_block_nodes(group, indent=indent)
+        rendered = rendered.strip("\n")
+        if rendered.strip():
+            chunks.append(rendered)
+    return "\n\n".join(chunks)
+
+
+def _divider_groups(node):
+    groups = [[False, []]]
+    for child in node.children:
+        if _is_ignorable(child):
+            continue
+        if _is_divider(child):
+            groups.append([True, []])
+        else:
+            groups[-1][1].append(child)
+    return groups
+
+
+def _render_notice_aside(nodes, indent=0):
+    heading = _render_inline_children(nodes[0])
+    if not heading:
+        return _render_block_nodes(nodes[1:], indent=indent)
+
+    prefix = heading if heading.endswith(":") else f"{heading}:"
+    content = " ".join(
+        part
+        for part in (
+            _render_notice_aside_text(node) for node in nodes[1:]
+        )
+        if part
+    )
+    value = f"{prefix} {content}" if content else prefix
+    aside_indent = " " * (indent + NOTICE_ASIDE_INDENT)
+    return _wrap_text(
+        value,
+        initial_indent=aside_indent,
+        subsequent_indent=aside_indent,
+        width=PLAIN_TEXT_LINE_LENGTH - NOTICE_ASIDE_INDENT,
+    )
+
+
+def _render_notice_aside_text(node):
+    if _is_ignorable(node):
+        return ""
+    if isinstance(node, NavigableString):
+        return _clean_inline(str(node))
+    if not isinstance(node, Tag):
+        return ""
+
+    tag_name = node.name.lower()
+    if tag_name in {"script", "style", "hr"}:
+        return ""
+    if not _has_direct_block_child(node):
+        return _render_inline_children(node)
+    return _clean_inline(_render_block(node))
+
+
 def _render_list(list_tag, indent=0):
     rendered_items = []
+    is_ordered = list_tag.name.lower() == "ol"
     list_items = _direct_children(list_tag, "li")
     start = _get_start(list_tag, len(list_items))
     for offset, list_item in enumerate(list_items):
-        number = start - offset if _is_reversed(list_tag) else start + offset
-        marker = _get_list_marker(list_tag, number)
-        prefix = f"{' ' * indent}{_format_marker(marker)}"
+        if is_ordered:
+            number = (
+                start - offset if _is_reversed(list_tag) else start + offset
+            )
+            marker = _get_list_marker(list_tag, number)
+            prefix = f"{' ' * indent}{_format_marker(marker)}"
+        else:
+            prefix = f"{' ' * indent}{_format_unordered_marker()}"
         content_indent = max(indent + LIST_INDENT, len(prefix))
         chunks = _render_list_item_chunks(list_item, content_indent)
         if not chunks:
@@ -143,7 +224,7 @@ def _render_list(list_tag, indent=0):
             rendered_items.append(
                 "\n".join(_render_list_item(prefix, content_indent, chunks))
             )
-    separator = "\n\n" if list_tag.name.lower() == "ol" else "\n"
+    separator = "\n\n" if is_ordered else "\n"
     return separator.join(rendered_items)
 
 
@@ -213,6 +294,10 @@ def _format_marker(marker):
     return f"{marker}. "
 
 
+def _format_unordered_marker():
+    return f"{'-'.rjust(LIST_INDENT - 1)} "
+
+
 def _get_start(list_tag, list_length):
     if _is_reversed(list_tag):
         default = list_length
@@ -229,9 +314,6 @@ def _is_reversed(list_tag):
 
 
 def _get_list_marker(list_tag, number):
-    if list_tag.name.lower() == "ul":
-        return "-"
-
     list_type = list_tag.get("type", "1")
     if list_type in {"1", ""}:
         return str(number)
@@ -326,6 +408,7 @@ def _wrap_text(
     indent=0,
     initial_indent=None,
     subsequent_indent=None,
+    width=PLAIN_TEXT_LINE_LENGTH,
 ):
     if not value:
         return ""
@@ -335,19 +418,24 @@ def _wrap_text(
         subsequent_indent = " " * indent
     return textwrap.fill(
         value,
-        width=PLAIN_TEXT_LINE_LENGTH,
+        width=width,
         initial_indent=initial_indent,
         subsequent_indent=subsequent_indent,
         break_long_words=False,
-        break_on_hyphens=False,
+        break_on_hyphens=True,
     )
 
 
 def _clean_inline(value):
+    value = value.replace("\u2013", EN_DASH_PLACEHOLDER)
     value = re.sub(r"\s+", " ", value)
     value = re.sub(r"\s+([,.;:!?%)\]])", r"\1", value)
     value = re.sub(r"([(\[])\s+", r"\1", value)
     return value.strip()
+
+
+def _restore_plain_text_tokens(value):
+    return value.replace(EN_DASH_PLACEHOLDER, "--")
 
 
 def _has_direct_block_child(node):
@@ -365,8 +453,16 @@ def _direct_children(node, tag_name):
     ]
 
 
+def _is_tag(node, tag_name):
+    return isinstance(node, Tag) and node.name.lower() == tag_name
+
+
 def _has_class(node, class_name):
     return class_name in node.get("class", [])
+
+
+def _is_divider(node):
+    return _is_tag(node, "hr") and _has_class(node, "divider")
 
 
 def _is_ignorable(node):

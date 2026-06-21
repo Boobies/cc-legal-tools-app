@@ -71,6 +71,57 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(text, " ".join(lines))
         self.assertTrue(all(len(line) <= 71 for line in lines))
 
+    def test_legal_code_html_to_plain_text_notice_asides(self):
+        html = """
+        <div id="about-cc-and-license" class="notice-top">
+          <h2>Using</h2>
+          <p>Intro text.</p>
+          <hr class="divider">
+          <h3>Licensors</h3>
+          <p>
+            Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda
+            mu nu.
+          </p>
+          <hr class="divider">
+          <h3>Public</h3>
+          <p>Gamma delta.</p>
+        </div>
+        """
+
+        plain_text = legal_code_html_to_plain_text(html)
+
+        self.assertEqual(
+            "Using\n\n"
+            "Intro text.\n\n"
+            "     Licensors: Alpha beta gamma delta epsilon zeta eta theta iota\n"
+            "     kappa lambda mu nu.\n\n"
+            "     Public: Gamma delta.\n",
+            plain_text,
+        )
+        aside_lines = [
+            line
+            for line in plain_text.splitlines()
+            if line.startswith("     ")
+        ]
+        self.assertTrue(aside_lines)
+        self.assertTrue(all(len(line) <= 66 for line in aside_lines))
+        self.assertTrue(all(line == line.rstrip() for line in aside_lines))
+
+    def test_legal_code_html_to_plain_text_notice_divider_fallback(self):
+        html = """
+        <div id="about-cc-and-license" class="notice-top">
+          <h2>Using</h2>
+          <hr class="divider">
+          <p>Fallback text.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Using\n\n"
+            "Fallback text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_ordered_list_markers(self):
         html = """
         <div id="legal-code-body">
@@ -137,7 +188,67 @@ class PlainTextUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "  -. Bullet item\n",
+            "   - Bullet item\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_unordered_list_wrap(self):
+        html = """
+        <div id="legal-code-body">
+          <ul>
+            <li>
+              Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda
+              mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.
+            </li>
+          </ul>
+        </div>
+        """
+
+        lines = legal_code_html_to_plain_text(html).splitlines()
+
+        self.assertTrue(lines[0].startswith("   - "))
+        self.assertTrue(all(line.startswith("     ") for line in lines[1:]))
+
+    def test_legal_code_html_to_plain_text_replaces_en_dash(self):
+        html = """
+        <div id="legal-code-body">
+          <h3>Section 1 – Definitions.</h3>
+        </div>
+        """
+
+        self.assertEqual(
+            "Section 1 -- Definitions.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_does_not_wrap_after_en_dash(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            reason–for example.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+            "reason--for example.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_wraps_after_hyphens(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            Alpha Alpha Alpha Alpha Alpha Alpha Alpha Alpha Alpha Alpha x
+            CC-licensed material.
+          </p>
+        </div>
+        """
+
+        self.assertIn(
+            "CC-\nlicensed",
             legal_code_html_to_plain_text(html),
         )
 
