@@ -6,7 +6,7 @@ import textwrap
 from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import Comment
 
-PLAIN_TEXT_LINE_LENGTH = 70
+PLAIN_TEXT_LINE_LENGTH = 71
 PLAIN_TEXT_SEPARATOR = "=" * PLAIN_TEXT_LINE_LENGTH
 LIST_INDENT = 5
 LIST_MARKER_WIDTH = 3

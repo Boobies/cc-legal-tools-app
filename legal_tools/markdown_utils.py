@@ -23,7 +23,7 @@ BLOCK_TAGS = {
     "section",
     "ul",
 }
-MARKDOWN_LINE_LENGTH = 70
+MARKDOWN_LINE_LENGTH = 71
 
 
 def legal_code_html_to_markdown(html):

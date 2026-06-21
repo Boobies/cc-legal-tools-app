@@ -1503,7 +1503,7 @@ class ViewLegalCodePlaintext(ToolsTestsMixin, TestCase):
         )
         lines = content.splitlines()
         self.assertEqual("Attribution 4.0 International", lines[0])
-        self.assertEqual(3, lines.count("=" * 70))
+        self.assertEqual(3, lines.count("=" * 71))
         self.assertEqual(2, lines.count("Attribution 4.0 International"))
         self.assertIn("About the license and Creative Commons", content)
         self.assertIn("Using Creative Commons Public Licenses", content)

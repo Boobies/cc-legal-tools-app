@@ -194,6 +194,15 @@ class Command(BaseCommand):
             dest="filter_license_markdown",
         )
         filter_args.add_argument(
+            "--ft",
+            "--filter-license-text",
+            action="store",
+            type=float,
+            choices=FILTER_LICENSE_VERSION_CHOICES,
+            help="Only distill plain text files for specified license version",
+            dest="filter_license_text",
+        )
+        filter_args.add_argument(
             "--fr",
             "--filter-rdf-xml",
             action="store_true",
@@ -398,6 +407,10 @@ class Command(BaseCommand):
                 if group != f"Licenses {options['filter_license_markdown']}":
                     continue
                 LOG.info(f"Distilling {group} legal code Markdown")
+            elif options["filter_license_text"]:
+                if group != f"Licenses {options['filter_license_text']}":
+                    continue
+                LOG.info(f"Distilling {group} legal code plain text")
             elif options["filter_rdfxml"]:
                 LOG.info(f"Distilling {group} legal code RDF/XML")
             else:
@@ -445,7 +458,10 @@ class Command(BaseCommand):
                     )
 
             if not options["filter_rdfxml"]:
-                if not options["filter_license_markdown"]:
+                if not (
+                    options["filter_license_markdown"]
+                    or options["filter_license_text"]
+                ):
                     redirect_pairs_data += self.pool.starmap(
                         save_deed, deed_arguments
                     )
@@ -455,6 +471,7 @@ class Command(BaseCommand):
                 if not (
                     options["filter_apache_redirects"]
                     or options["filter_license_html"]
+                    or options["filter_license_text"]
                 ):
                     self.pool.starmap(
                         save_legal_code_markdown, markdown_arguments
@@ -471,6 +488,7 @@ class Command(BaseCommand):
                 not options["filter_apache_redirects"]
                 and not options["filter_license_html"]
                 and not options["filter_license_markdown"]
+                and not options["filter_license_text"]
             ):
                 self.pool.starmap(save_rdf, rdf_arguments)
 
@@ -641,6 +659,9 @@ class Command(BaseCommand):
             options["run"]["pool_distill_legal_tools"] = True
         # Filter licenses Markdown
         elif options["filter_license_markdown"]:
+            options["run"]["pool_distill_legal_tools"] = True
+        # Filter licenses plain text
+        elif options["filter_license_text"]:
             options["run"]["pool_distill_legal_tools"] = True
         # Filter RDF/XML
         elif options["filter_rdfxml"]:

@@ -69,7 +69,7 @@ class PlainTextUtilsTest(SimpleTestCase):
 
         self.assertGreater(len(lines), 1)
         self.assertEqual(text, " ".join(lines))
-        self.assertTrue(all(len(line) <= 70 for line in lines))
+        self.assertTrue(all(len(line) <= 71 for line in lines))
 
     def test_legal_code_html_to_plain_text_ordered_list_markers(self):
         html = """
