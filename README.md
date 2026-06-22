@@ -42,8 +42,8 @@ application manages over 30,000 documents.
 ### Not the live site
 
 This project is not intended to serve the legal tools directly. Instead, a
-command line tool can be used to save all the rendered HTML, Markdown, and
-plain text, and RDF/XML pages as files. Then those files are used as part of the
+command line tool can be used to save all the rendered HTML, Markdown, plain
+text, and RDF/XML pages as files. Then those files are used as part of the
 CreativeCommons.org site (served as static files).
 
 
