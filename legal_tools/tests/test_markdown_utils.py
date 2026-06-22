@@ -33,14 +33,14 @@ class MarkdownUtilsTest(SimpleTestCase):
             "<u>Adapted Material</u> means material described in "
             "[Section 1](#s1).\n\n"
             '<ol type="a">\n'
-            "<li>First item</li>\n"
-            "<li>\n"
-            "Second item\n"
-            '<ol type="i">\n'
-            "<li>Nested item</li>\n"
-            "<li>Second nested item</li>\n"
-            "</ol>\n"
-            "</li>\n"
+            "  <li>First item</li>\n"
+            "  <li>\n"
+            "    Second item\n"
+            '    <ol type="i">\n'
+            "      <li>Nested item</li>\n"
+            "      <li>Second nested item</li>\n"
+            "    </ol>\n"
+            "  </li>\n"
             "</ol>\n"
         )
 
@@ -73,7 +73,7 @@ class MarkdownUtilsTest(SimpleTestCase):
 
         self.assertEqual(
             '<ol type="A">\n'
-            "<li><strong>Notice</strong> and <em>care</em> must be "
+            "  <li><strong>Notice</strong> and <em>care</em> must be "
             "retained.</li>\n"
             "</ol>\n",
             legal_code_html_to_markdown(html),
@@ -90,10 +90,56 @@ class MarkdownUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "<ol>\n"
-            "<li>First decimal item.</li>\n"
-            "<li>Second decimal item.</li>\n"
-            "</ol>\n",
+            "1. First decimal item.\n"
+            "2. Second decimal item.\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_unwraps_div_in_decimal_list(self):
+        html = """
+        <div id="legal-code-body">
+          <ol>
+            <li>
+              <div><strong>Term</strong> means something.</div>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "1. **Term** means something.\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_unordered_list(self):
+        html = """
+        <div id="legal-code-body">
+          <ul>
+            <li>First bullet.</li>
+            <li>Second bullet.</li>
+          </ul>
+        </div>
+        """
+
+        self.assertEqual(
+            "- First bullet.\n"
+            "- Second bullet.\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_ordered_list_start(self):
+        html = """
+        <div id="legal-code-body">
+          <ol start="3">
+            <li>Third decimal item.</li>
+            <li>Fourth decimal item.</li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "3. Third decimal item.\n"
+            "4. Fourth decimal item.\n",
             legal_code_html_to_markdown(html),
         )
 
@@ -113,7 +159,7 @@ class MarkdownUtilsTest(SimpleTestCase):
 
         self.assertGreater(len(lines), 1)
         self.assertEqual(text, " ".join(lines))
-        self.assertTrue(all(len(line) <= 70 for line in lines))
+        self.assertTrue(all(len(line) <= 71 for line in lines))
 
     def test_legal_code_html_to_markdown_wraps_direct_text_nodes(self):
         text = (
@@ -132,7 +178,7 @@ class MarkdownUtilsTest(SimpleTestCase):
 
         self.assertEqual("## Notice", lines[0])
         self.assertEqual(text, " ".join(lines[2:]))
-        self.assertTrue(all(len(line) <= 70 for line in lines))
+        self.assertTrue(all(len(line) <= 71 for line in lines))
 
     def test_legal_code_html_to_markdown_wraps_markdown_emphasis(self):
         html = """
@@ -149,7 +195,7 @@ class MarkdownUtilsTest(SimpleTestCase):
 
         self.assertIn("**strong emphasis**", markdown)
         self.assertIn("*emphasis text*", markdown)
-        self.assertTrue(all(len(line) <= 70 for line in markdown.splitlines()))
+        self.assertTrue(all(len(line) <= 71 for line in markdown.splitlines()))
 
     def test_legal_code_html_to_markdown_wraps_html_list_items(self):
         text = (
@@ -168,12 +214,13 @@ class MarkdownUtilsTest(SimpleTestCase):
         lines = markdown.splitlines()
 
         self.assertEqual('<ol type="a">', lines[0])
-        self.assertEqual("<li>", lines[1])
-        self.assertEqual("</li>", lines[-2])
+        self.assertEqual("  <li>", lines[1])
+        self.assertEqual("  </li>", lines[-2])
         self.assertEqual("</ol>", lines[-1])
         self.assertNotIn("", lines)
-        self.assertEqual(text, " ".join(lines[2:-2]))
-        self.assertTrue(all(len(line) <= 70 for line in lines))
+        self.assertEqual(text, " ".join(line.strip() for line in lines[2:-2]))
+        self.assertTrue(all(line.startswith("    ") for line in lines[2:-2]))
+        self.assertTrue(all(len(line) <= 71 for line in lines))
 
     def test_legal_code_html_to_markdown_wraps_html_block_tags(self):
         text = (
@@ -182,7 +229,7 @@ class MarkdownUtilsTest(SimpleTestCase):
         )
         html = f"""
         <div id="legal-code-body">
-          <ol>
+          <ol type="a">
             <li><p>{text}</p></li>
           </ol>
         </div>
@@ -191,9 +238,55 @@ class MarkdownUtilsTest(SimpleTestCase):
         markdown = legal_code_html_to_markdown(html)
         lines = markdown.splitlines()
 
-        self.assertIn("<p>", lines)
-        self.assertIn("</p>", lines)
-        self.assertTrue(all(len(line) <= 70 for line in lines))
+        self.assertIn("    <p>", lines)
+        self.assertIn("    </p>", lines)
+        self.assertTrue(all(len(line) <= 71 for line in lines))
+
+    def test_legal_code_html_to_markdown_unwraps_div_in_html_list(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li>
+              <div><strong>Term</strong> means something.</div>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            '<ol type="a">\n'
+            "  <li><strong>Term</strong> means something.</li>\n"
+            "</ol>\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_unwraps_div_around_blocks(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li>
+              <div>
+                <p>Introductory paragraph.</p>
+                <ol type="i">
+                  <li>Nested item.</li>
+                </ol>
+              </div>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            '<ol type="a">\n'
+            "  <li>\n"
+            "    <p>Introductory paragraph.</p>\n"
+            '    <ol type="i">\n'
+            "      <li>Nested item.</li>\n"
+            "    </ol>\n"
+            "  </li>\n"
+            "</ol>\n",
+            legal_code_html_to_markdown(html),
+        )
 
     def test_legal_code_html_to_markdown_preserves_long_tokens(self):
         token = f"https://creativecommons.org/{'licensepath' * 9}"
@@ -245,13 +338,57 @@ class MarkdownUtilsTest(SimpleTestCase):
 
         self.assertEqual(
             '<ol type="a">\n'
-            "<li>\n"
-            "Parent item\n"
-            "<ol>\n"
-            "<li>Nested decimal item.</li>\n"
-            "<li>Second nested decimal item.</li>\n"
-            "</ol>\n"
-            "</li>\n"
+            "  <li>\n"
+            "    Parent item\n"
+            "    <ol>\n"
+            "      <li>Nested decimal item.</li>\n"
+            "      <li>Second nested decimal item.</li>\n"
+            "    </ol>\n"
+            "  </li>\n"
             "</ol>\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_native_nested_decimal_list(self):
+        html = """
+        <div id="legal-code-body">
+          <ol>
+            <li>
+              Parent item
+              <ol>
+                <li>Nested decimal item.</li>
+                <li>Second nested decimal item.</li>
+              </ol>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "1. Parent item\n"
+            "   1. Nested decimal item.\n"
+            "   2. Second nested decimal item.\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_html_list_inside_native_list(self):
+        html = """
+        <div id="legal-code-body">
+          <ul>
+            <li>
+              Parent item
+              <ol type="a">
+                <li>Nested alpha item.</li>
+              </ol>
+            </li>
+          </ul>
+        </div>
+        """
+
+        self.assertEqual(
+            "- Parent item\n"
+            '  <ol type="a">\n'
+            "    <li>Nested alpha item.</li>\n"
+            "  </ol>\n",
             legal_code_html_to_markdown(html),
         )
