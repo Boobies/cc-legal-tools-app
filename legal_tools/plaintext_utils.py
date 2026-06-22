@@ -1,4 +1,5 @@
 # Standard library
+from dataclasses import dataclass
 import re
 import textwrap
 
@@ -8,8 +9,7 @@ from bs4.element import Comment
 
 PLAIN_TEXT_LINE_LENGTH = 71
 PLAIN_TEXT_SEPARATOR = "=" * PLAIN_TEXT_LINE_LENGTH
-LIST_INDENT = 5
-LIST_MARKER_WIDTH = 3
+LIST_MIN_PREFIX_WIDTH = 5
 NOTICE_ASIDE_INDENT = 5
 EN_DASH_PLACEHOLDER = "\ue000\ue001"
 _SECTION_REFERENCE_RE = re.compile(
@@ -50,6 +50,11 @@ class PlainTextRenderError(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class _PlainTextRenderContext:
+    list_prefix_width: int
+
+
 class _PlainTextWrapper(textwrap.TextWrapper):
     def _split(self, text):
         chunks = super()._split(text)
@@ -72,17 +77,34 @@ def legal_code_html_to_plain_text(html):
     legal_code_document = soup.find(id="legal-code-document")
     legal_code_body = soup.find(id="legal-code-body")
     root = legal_code_document or legal_code_body or soup.body or soup
+    context = _build_render_context(root)
     if legal_code_document:
-        plain_text = _render_document(root).strip("\n")
+        plain_text = _render_document(root, context).strip("\n")
     else:
-        plain_text = _render_block(root).strip("\n")
+        plain_text = _render_block(root, context).strip("\n")
     if not plain_text:
         return ""
     plain_text = _restore_plain_text_tokens(plain_text)
     return f"{plain_text}\n"
 
 
-def _render_document(document):
+def _build_render_context(root):
+    longest_marker = 0
+    for list_tag in root.find_all("ol"):
+        list_items = _direct_children(list_tag, "li")
+        start = _get_start(list_tag, len(list_items))
+        for offset, _list_item in enumerate(list_items):
+            number = (
+                start - offset if _is_reversed(list_tag) else start + offset
+            )
+            marker = _get_list_marker(list_tag, number)
+            longest_marker = max(longest_marker, len(marker))
+    return _PlainTextRenderContext(
+        list_prefix_width=max(LIST_MIN_PREFIX_WIDTH, longest_marker + 2)
+    )
+
+
+def _render_document(document, context):
     sections = []
     current_region = None
     current_chunks = []
@@ -97,7 +119,7 @@ def _render_document(document):
 
     for child in _non_ignorable_children(document):
         region = _document_region(child)
-        rendered = _render_block(child)
+        rendered = _render_block(child, context)
         if _preserves_trailing_spacing(child):
             rendered = rendered.lstrip("\n")
         else:
@@ -126,7 +148,7 @@ def _document_region(node):
     return "other"
 
 
-def _render_block(node, indent=0):
+def _render_block(node, context, indent=0):
     if _is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
@@ -144,24 +166,24 @@ def _render_block(node, indent=0):
     if tag_name == "p":
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name in _LIST_TAGS:
-        return _render_list(node, indent=indent)
+        return _render_list(node, context, indent=indent)
     if node.get("id") == "legal-code-body":
-        return _render_legal_code_body(node, indent=indent)
+        return _render_legal_code_body(node, context, indent=indent)
     if node.get("id") == "about-cc-and-license":
-        return _render_about_cc_and_license(node, indent=indent)
+        return _render_about_cc_and_license(node, context, indent=indent)
     if _has_direct_block_child(node):
-        return _render_block_children(node, indent=indent)
+        return _render_block_children(node, context, indent=indent)
     return _wrap_text(_render_inline_children(node), indent=indent)
 
 
-def _render_block_children(node, indent=0):
-    return _render_block_nodes(node.children, indent=indent)
+def _render_block_children(node, context, indent=0):
+    return _render_block_nodes(node.children, context, indent=indent)
 
 
-def _render_block_nodes(nodes, indent=0):
+def _render_block_nodes(nodes, context, indent=0):
     chunks = []
     for child in nodes:
-        _append_rendered(chunks, _render_block(child, indent=indent))
+        _append_rendered(chunks, _render_block(child, context, indent=indent))
     return "\n\n".join(chunks)
 
 
@@ -175,10 +197,12 @@ def _strip_rendered(rendered):
     return rendered.strip("\n")
 
 
-def _render_legal_code_body(node, indent=0):
+def _render_legal_code_body(node, context, indent=0):
     chunks = []
     for is_section, group in _legal_code_body_groups(node):
-        rendered = _strip_rendered(_render_block_nodes(group, indent=indent))
+        rendered = _strip_rendered(
+            _render_block_nodes(group, context, indent=indent)
+        )
         if not rendered.strip():
             continue
         if is_section:
@@ -209,7 +233,7 @@ def _legal_code_body_groups(node):
     return groups
 
 
-def _render_about_cc_and_license(node, indent=0):
+def _render_about_cc_and_license(node, context, indent=0):
     chunks = []
     ordinary_nodes = []
     children = _non_ignorable_children(node)
@@ -218,7 +242,9 @@ def _render_about_cc_and_license(node, indent=0):
     def flush_ordinary_nodes():
         if not ordinary_nodes:
             return
-        rendered = _render_block_nodes(ordinary_nodes, indent=indent)
+        rendered = _render_block_nodes(
+            ordinary_nodes, context, indent=indent
+        )
         _append_rendered(chunks, rendered)
         ordinary_nodes.clear()
 
@@ -233,7 +259,9 @@ def _render_about_cc_and_license(node, indent=0):
             ):
                 notice_nodes.append(children[index])
                 index += 1
-            rendered = _render_notice_aside(notice_nodes, indent=indent)
+            rendered = _render_notice_aside(
+                notice_nodes, context, indent=indent
+            )
             _append_rendered(chunks, rendered)
             continue
         if not _is_divider(child):
@@ -262,16 +290,16 @@ def _is_heading_at_or_above(node, level):
     return bool(match and int(match.group(1)) <= level)
 
 
-def _render_notice_aside(nodes, indent=0):
+def _render_notice_aside(nodes, context, indent=0):
     heading = _render_inline_children(nodes[0])
     if not heading:
-        return _render_block_nodes(nodes[1:], indent=indent)
+        return _render_block_nodes(nodes[1:], context, indent=indent)
 
     prefix = heading if heading.endswith(":") else f"{heading}:"
     content = " ".join(
         part
         for part in (
-            _render_notice_aside_text(node) for node in nodes[1:]
+            _render_notice_aside_text(node, context) for node in nodes[1:]
         )
         if part
     )
@@ -285,7 +313,7 @@ def _render_notice_aside(nodes, indent=0):
     )
 
 
-def _render_notice_aside_text(node):
+def _render_notice_aside_text(node, context):
     if _is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
@@ -298,10 +326,10 @@ def _render_notice_aside_text(node):
         return ""
     if not _has_direct_block_child(node):
         return _render_inline_children(node)
-    return _clean_inline(_render_block(node))
+    return _clean_inline(_render_block(node, context))
 
 
-def _render_list(list_tag, indent=0):
+def _render_list(list_tag, context, indent=0):
     rendered_items = []
     is_ordered = list_tag.name.lower() == "ol"
     list_items = _direct_children(list_tag, "li")
@@ -312,11 +340,11 @@ def _render_list(list_tag, indent=0):
                 start - offset if _is_reversed(list_tag) else start + offset
             )
             marker = _get_list_marker(list_tag, number)
-            prefix = f"{' ' * indent}{_format_marker(marker)}"
+            prefix = f"{' ' * indent}{_format_marker(marker, context)}"
         else:
-            prefix = f"{' ' * indent}{_format_unordered_marker()}"
-        content_indent = max(indent + LIST_INDENT, len(prefix))
-        chunks = _render_list_item_chunks(list_item, content_indent)
+            prefix = f"{' ' * indent}{_format_unordered_marker(context)}"
+        content_indent = indent + context.list_prefix_width
+        chunks = _render_list_item_chunks(list_item, context, content_indent)
         if not chunks:
             rendered_items.append(prefix.rstrip())
         else:
@@ -350,7 +378,7 @@ def _render_list_item(prefix, content_indent, chunks):
     return lines
 
 
-def _render_list_item_chunks(list_item, content_indent):
+def _render_list_item_chunks(list_item, context, content_indent):
     chunks = []
     inline_nodes = []
 
@@ -365,11 +393,13 @@ def _render_list_item_chunks(list_item, content_indent):
     for child in _non_ignorable_children(list_item):
         if isinstance(child, Tag) and child.name.lower() == "div":
             flush_inline_nodes()
-            chunks.extend(_render_list_item_chunks(child, content_indent))
+            chunks.extend(
+                _render_list_item_chunks(child, context, content_indent)
+            )
         elif isinstance(child, Tag) and child.name.lower() in _LIST_TAGS:
             flush_inline_nodes()
             rendered = _strip_rendered(
-                _render_list(child, indent=content_indent)
+                _render_list(child, context, indent=content_indent)
             )
             if rendered.strip():
                 chunks.append((_LIST_CHUNK_RENDERED, rendered))
@@ -383,7 +413,7 @@ def _render_list_item_chunks(list_item, content_indent):
                     chunks.append((_LIST_CHUNK_TEXT, rendered))
             else:
                 rendered = _strip_rendered(
-                    _render_block(child, indent=content_indent)
+                    _render_block(child, context, indent=content_indent)
                 )
                 if rendered.strip():
                     chunks.append((_LIST_CHUNK_RENDERED, rendered))
@@ -395,17 +425,13 @@ def _render_list_item_chunks(list_item, content_indent):
     return chunks
 
 
-def _format_marker(marker):
-    if len(marker) > LIST_MARKER_WIDTH:
-        raise PlainTextRenderError(
-            f"List marker exceeds {LIST_MARKER_WIDTH} characters: {marker}"
-        )
-    marker = marker.rjust(LIST_MARKER_WIDTH)
+def _format_marker(marker, context):
+    marker = marker.rjust(context.list_prefix_width - 2)
     return f"{marker}. "
 
 
-def _format_unordered_marker():
-    return f"{'-'.rjust(LIST_INDENT - 1)} "
+def _format_unordered_marker(context):
+    return f"{'-'.rjust(context.list_prefix_width - 1)} "
 
 
 def _get_start(list_tag, list_length):

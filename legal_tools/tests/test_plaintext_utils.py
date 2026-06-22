@@ -312,6 +312,28 @@ class PlainTextUtilsTest(SimpleTestCase):
             legal_code_html_to_plain_text(html),
         )
 
+    def test_legal_code_html_to_plain_text_list_width_is_document_wide(self):
+        html = """
+        <div id="legal-code-body">
+          <ul>
+            <li>Bullet</li>
+          </ul>
+          <ol>
+            <li>Decimal</li>
+          </ol>
+          <ol type="i" start="8">
+            <li>Roman</li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "    - Bullet\n\n"
+            "   1. Decimal\n\n"
+            "viii. Roman\n",
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_nested_list_indentation(self):
         html = """
         <div id="legal-code-body">
@@ -329,6 +351,28 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(
             "  1. Parent item\n\n"
             "       i. Nested item\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_nested_list_dynamic_indentation(
+        self,
+    ):
+        html = """
+        <div id="legal-code-body">
+          <ol type="i" start="8">
+            <li>
+              Parent item
+              <ol>
+                <li>Nested item</li>
+              </ol>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "viii. Parent item\n\n"
+            "         1. Nested item\n",
             legal_code_html_to_plain_text(html),
         )
 
@@ -566,7 +610,9 @@ class PlainTextUtilsTest(SimpleTestCase):
             legal_code_html_to_plain_text(html),
         )
 
-    def test_legal_code_html_to_plain_text_long_marker(self):
+    def test_legal_code_html_to_plain_text_long_marker_expands_list_width(
+        self,
+    ):
         html = """
         <div id="legal-code-body">
           <ol type="i" start="8">
@@ -578,9 +624,26 @@ class PlainTextUtilsTest(SimpleTestCase):
         </div>
         """
 
+        self.assertEqual(
+            "viii. Alpha beta gamma delta epsilon zeta eta theta iota "
+            "kappa lambda\n"
+            "      mu nu xi omicron pi rho sigma tau upsilon phi chi "
+            "psi omega.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_invalid_roman_marker(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="i" start="0">
+            <li>Invalid marker</li>
+          </ol>
+        </div>
+        """
+
         with self.assertRaisesRegex(
             PlainTextRenderError,
-            "List marker exceeds 3 characters: viii",
+            "Roman list marker requires positive number: 0",
         ):
             legal_code_html_to_plain_text(html)
 
