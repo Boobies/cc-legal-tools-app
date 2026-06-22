@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 # First-party/Local
 from legal_tools.plaintext_utils import (
     PLAIN_TEXT_SEPARATOR,
+    PlainTextRenderError,
     legal_code_html_to_plain_text,
 )
 
@@ -145,6 +146,22 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(
             f"{lead}3(a)(1)(A)\n"
             "(i). applies.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_wraps_section_reference_ranges(
+        self,
+    ):
+        lead = f"{'x' * 55} Section "
+        html = f"""
+        <div id="legal-code-body">
+          <p>{lead}2(b)(1)-(2) applies.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            f"{lead}2(b)\n"
+            "(1)-(2) applies.\n",
             legal_code_html_to_plain_text(html),
         )
 
@@ -521,13 +538,11 @@ class PlainTextUtilsTest(SimpleTestCase):
         </div>
         """
 
-        self.assertEqual(
-            "viii. Alpha beta gamma delta epsilon zeta eta theta iota kappa "
-            "lambda\n"
-            "      mu nu xi omicron pi rho sigma tau upsilon phi chi psi "
-            "omega.\n",
-            legal_code_html_to_plain_text(html),
-        )
+        with self.assertRaisesRegex(
+            PlainTextRenderError,
+            "List marker exceeds 3 characters: viii",
+        ):
+            legal_code_html_to_plain_text(html)
 
     def test_legal_code_html_to_plain_text_links(self):
         html = """

@@ -12,10 +12,21 @@ LIST_INDENT = 5
 LIST_MARKER_WIDTH = 3
 NOTICE_ASIDE_INDENT = 5
 EN_DASH_PLACEHOLDER = "\ue000\ue001"
-SECTION_REFERENCE_RE = re.compile(
-    r"^(\d+)((?:\([A-Za-z0-9]+\))+)([.,;:!?]*)$"
+_SECTION_REFERENCE_RE = re.compile(
+    r"^(\d+)((?:\([A-Za-z0-9]+\))+)(-(?:\([A-Za-z0-9]+\))+)?"
+    r"([.,;:!?]*)$"
 )
-SECTION_REFERENCE_PART_RE = re.compile(r"\([A-Za-z0-9]+\)")
+_SECTION_REFERENCE_PART_RE = re.compile(r"\([A-Za-z0-9]+\)")
+_IGNORED_TAGS = {"script", "style", "hr"}
+_HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+_LIST_TAGS = {"ol", "ul"}
+_LIST_CHUNK_TEXT = "text"
+_LIST_CHUNK_RENDERED = "rendered"
+_NOTICE_ASIDE_CLASSES = {"level", "is-vcentered", "b-header"}
+_SKIPPED_NOTICE_HEADING_PARENT_IDS = {
+    "notice-about-licenses-and-cc",
+    "notice-about-cc-and-trademark",
+}
 
 BLOCK_TAGS = {
     "article",
@@ -39,7 +50,7 @@ class PlainTextRenderError(ValueError):
     pass
 
 
-class PlainTextWrapper(textwrap.TextWrapper):
+class _PlainTextWrapper(textwrap.TextWrapper):
     def _split(self, text):
         chunks = super()._split(text)
         return [
@@ -84,9 +95,7 @@ def _render_document(document):
         current_region = None
         current_chunks = []
 
-    for child in document.children:
-        if _is_ignorable(child):
-            continue
+    for child in _non_ignorable_children(document):
         region = _document_region(child)
         rendered = _render_block(child)
         if _preserves_trailing_spacing(child):
@@ -126,15 +135,15 @@ def _render_block(node, indent=0):
         return ""
 
     tag_name = node.name.lower()
-    if tag_name in {"script", "style", "hr"}:
+    if tag_name in _IGNORED_TAGS:
         return ""
     if _is_skipped_notice_heading(node):
         return ""
-    if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+    if tag_name in _HEADING_TAGS:
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name == "p":
         return _wrap_text(_render_inline_children(node), indent=indent)
-    if tag_name in {"ol", "ul"}:
+    if tag_name in _LIST_TAGS:
         return _render_list(node, indent=indent)
     if node.get("id") == "legal-code-body":
         return _render_legal_code_body(node, indent=indent)
@@ -152,16 +161,24 @@ def _render_block_children(node, indent=0):
 def _render_block_nodes(nodes, indent=0):
     chunks = []
     for child in nodes:
-        rendered = _render_block(child, indent=indent).strip("\n")
-        if rendered.strip():
-            chunks.append(rendered)
+        _append_rendered(chunks, _render_block(child, indent=indent))
     return "\n\n".join(chunks)
+
+
+def _append_rendered(chunks, rendered):
+    rendered = _strip_rendered(rendered)
+    if rendered.strip():
+        chunks.append(rendered)
+
+
+def _strip_rendered(rendered):
+    return rendered.strip("\n")
 
 
 def _render_legal_code_body(node, indent=0):
     chunks = []
     for is_section, group in _legal_code_body_groups(node):
-        rendered = _render_block_nodes(group, indent=indent).strip("\n")
+        rendered = _strip_rendered(_render_block_nodes(group, indent=indent))
         if not rendered.strip():
             continue
         if is_section:
@@ -181,9 +198,7 @@ def _legal_code_body_groups(node):
             groups.append((current_is_section, current_group))
             current_group = []
 
-    for child in node.children:
-        if _is_ignorable(child):
-            continue
+    for child in _non_ignorable_children(node):
         if _is_legal_section_heading(child):
             flush_group()
             current_group = [child]
@@ -197,16 +212,14 @@ def _legal_code_body_groups(node):
 def _render_about_cc_and_license(node, indent=0):
     chunks = []
     ordinary_nodes = []
-    children = [child for child in node.children if not _is_ignorable(child)]
+    children = _non_ignorable_children(node)
     index = 0
 
     def flush_ordinary_nodes():
         if not ordinary_nodes:
             return
         rendered = _render_block_nodes(ordinary_nodes, indent=indent)
-        rendered = rendered.strip("\n")
-        if rendered.strip():
-            chunks.append(rendered)
+        _append_rendered(chunks, rendered)
         ordinary_nodes.clear()
 
     while index < len(children):
@@ -221,9 +234,7 @@ def _render_about_cc_and_license(node, indent=0):
                 notice_nodes.append(children[index])
                 index += 1
             rendered = _render_notice_aside(notice_nodes, indent=indent)
-            rendered = rendered.strip("\n")
-            if rendered.strip():
-                chunks.append(rendered)
+            _append_rendered(chunks, rendered)
             continue
         if not _is_divider(child):
             ordinary_nodes.append(child)
@@ -236,9 +247,7 @@ def _render_about_cc_and_license(node, indent=0):
 def _is_notice_aside_heading(node):
     return (
         _is_tag(node, "h3")
-        and _has_class(node, "level")
-        and _has_class(node, "is-vcentered")
-        and _has_class(node, "b-header")
+        and _NOTICE_ASIDE_CLASSES.issubset(set(node.get("class", [])))
     )
 
 
@@ -285,7 +294,7 @@ def _render_notice_aside_text(node):
         return ""
 
     tag_name = node.name.lower()
-    if tag_name in {"script", "style", "hr"}:
+    if tag_name in _IGNORED_TAGS:
         return ""
     if not _has_direct_block_child(node):
         return _render_inline_children(node)
@@ -322,7 +331,7 @@ def _render_list_item(prefix, content_indent, chunks):
     for index, (kind, content) in enumerate(chunks):
         if index > 0 and lines and lines[-1] != "":
             lines.append("")
-        if kind == "text":
+        if kind == _LIST_CHUNK_TEXT:
             if index == 0:
                 rendered = _wrap_text(
                     content,
@@ -332,7 +341,7 @@ def _render_list_item(prefix, content_indent, chunks):
             else:
                 rendered = _wrap_text(content, indent=content_indent)
             lines.extend(rendered.splitlines())
-        elif kind == "rendered":
+        elif kind == _LIST_CHUNK_RENDERED:
             if index == 0:
                 lines.append(prefix.rstrip())
             lines.extend(content.splitlines())
@@ -351,16 +360,16 @@ def _render_list_item_chunks(list_item, content_indent):
         content = _render_inline_nodes(inline_nodes)
         inline_nodes.clear()
         if content:
-            chunks.append(("text", content))
+            chunks.append((_LIST_CHUNK_TEXT, content))
 
-    for child in list_item.children:
-        if _is_ignorable(child):
-            continue
-        if isinstance(child, Tag) and child.name.lower() in {"ol", "ul"}:
+    for child in _non_ignorable_children(list_item):
+        if isinstance(child, Tag) and child.name.lower() in _LIST_TAGS:
             flush_inline_nodes()
-            rendered = _render_list(child, indent=content_indent).strip("\n")
+            rendered = _strip_rendered(
+                _render_list(child, indent=content_indent)
+            )
             if rendered.strip():
-                chunks.append(("rendered", rendered))
+                chunks.append((_LIST_CHUNK_RENDERED, rendered))
         elif isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS:
             flush_inline_nodes()
             if child.name.lower() == "p" and not _has_direct_block_child(
@@ -368,13 +377,13 @@ def _render_list_item_chunks(list_item, content_indent):
             ):
                 rendered = _render_inline_children(child)
                 if rendered:
-                    chunks.append(("text", rendered))
+                    chunks.append((_LIST_CHUNK_TEXT, rendered))
             else:
-                rendered = _render_block(
-                    child, indent=content_indent
-                ).strip("\n")
+                rendered = _strip_rendered(
+                    _render_block(child, indent=content_indent)
+                )
                 if rendered.strip():
-                    chunks.append(("rendered", rendered))
+                    chunks.append((_LIST_CHUNK_RENDERED, rendered))
         else:
             inline_nodes.append(child)
     flush_inline_nodes()
@@ -384,8 +393,11 @@ def _render_list_item_chunks(list_item, content_indent):
 
 
 def _format_marker(marker):
-    if len(marker) <= LIST_MARKER_WIDTH:
-        marker = marker.rjust(LIST_MARKER_WIDTH)
+    if len(marker) > LIST_MARKER_WIDTH:
+        raise PlainTextRenderError(
+            f"List marker exceeds {LIST_MARKER_WIDTH} characters: {marker}"
+        )
+    marker = marker.rjust(LIST_MARKER_WIDTH)
     return f"{marker}. "
 
 
@@ -513,7 +525,7 @@ def _wrap_text(
         initial_indent = " " * indent
     if subsequent_indent is None:
         subsequent_indent = " " * indent
-    wrapper = PlainTextWrapper(
+    wrapper = _PlainTextWrapper(
         width=width,
         initial_indent=initial_indent,
         subsequent_indent=subsequent_indent,
@@ -524,12 +536,20 @@ def _wrap_text(
 
 
 def _split_section_reference_chunk(chunk):
-    match = SECTION_REFERENCE_RE.fullmatch(chunk)
+    match = _SECTION_REFERENCE_RE.fullmatch(chunk)
     if not match:
         return [chunk]
 
-    section, parenthetical_refs, trailing_punctuation = match.groups()
-    parts = [section, *SECTION_REFERENCE_PART_RE.findall(parenthetical_refs)]
+    section, parenthetical_refs, range_refs, trailing_punctuation = (
+        match.groups()
+    )
+    parts = [
+        section,
+        *_SECTION_REFERENCE_PART_RE.findall(parenthetical_refs),
+    ]
+    if range_refs:
+        parts[-1] = f"{parts[-1]}-"
+        parts.extend(_SECTION_REFERENCE_PART_RE.findall(range_refs))
     if trailing_punctuation:
         parts[-1] = f"{parts[-1]}{trailing_punctuation}"
     return parts
@@ -555,6 +575,10 @@ def _has_direct_block_child(node):
         isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS
         for child in node.children
     )
+
+
+def _non_ignorable_children(node):
+    return [child for child in node.children if not _is_ignorable(child)]
 
 
 def _direct_children(node, tag_name):
@@ -585,10 +609,10 @@ def _is_skipped_notice_heading(node):
     if not _is_tag(node, "h2"):
         return False
     parent = node.parent
-    return isinstance(parent, Tag) and parent.get("id") in {
-        "notice-about-licenses-and-cc",
-        "notice-about-cc-and-trademark",
-    }
+    return (
+        isinstance(parent, Tag)
+        and parent.get("id") in _SKIPPED_NOTICE_HEADING_PARENT_IDS
+    )
 
 
 def _has_bold_font_weight(node):
