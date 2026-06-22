@@ -12,6 +12,10 @@ LIST_INDENT = 5
 LIST_MARKER_WIDTH = 3
 NOTICE_ASIDE_INDENT = 5
 EN_DASH_PLACEHOLDER = "\ue000\ue001"
+SECTION_REFERENCE_RE = re.compile(
+    r"^(\d+)((?:\([A-Za-z0-9]+\))+)([.,;:!?]*)$"
+)
+SECTION_REFERENCE_PART_RE = re.compile(r"\([A-Za-z0-9]+\)")
 
 BLOCK_TAGS = {
     "article",
@@ -33,6 +37,16 @@ BLOCK_TAGS = {
 
 class PlainTextRenderError(ValueError):
     pass
+
+
+class PlainTextWrapper(textwrap.TextWrapper):
+    def _split(self, text):
+        chunks = super()._split(text)
+        return [
+            part
+            for chunk in chunks
+            for part in _split_section_reference_chunk(chunk)
+        ]
 
 
 def legal_code_html_to_plain_text(html):
@@ -467,14 +481,26 @@ def _wrap_text(
         initial_indent = " " * indent
     if subsequent_indent is None:
         subsequent_indent = " " * indent
-    return textwrap.fill(
-        value,
+    wrapper = PlainTextWrapper(
         width=width,
         initial_indent=initial_indent,
         subsequent_indent=subsequent_indent,
         break_long_words=False,
         break_on_hyphens=True,
     )
+    return wrapper.fill(value)
+
+
+def _split_section_reference_chunk(chunk):
+    match = SECTION_REFERENCE_RE.fullmatch(chunk)
+    if not match:
+        return [chunk]
+
+    section, parenthetical_refs, trailing_punctuation = match.groups()
+    parts = [section, *SECTION_REFERENCE_PART_RE.findall(parenthetical_refs)]
+    if trailing_punctuation:
+        parts[-1] = f"{parts[-1]}{trailing_punctuation}"
+    return parts
 
 
 def _clean_inline(value):

@@ -119,6 +119,35 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(text, " ".join(lines))
         self.assertTrue(all(len(line) <= 71 for line in lines))
 
+    def test_legal_code_html_to_plain_text_wraps_section_references(self):
+        text = f"{'Alpha ' * 9}Beta Section 2(b)(1) applies."
+        html = f"""
+        <div id="legal-code-body">
+          <p>{text}</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Alpha Alpha Alpha Alpha Alpha Alpha Alpha Alpha Alpha "
+            "Beta Section 2(b)\n"
+            "(1) applies.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_wraps_deep_section_references(self):
+        lead = f"{'x' * 52} Section "
+        html = f"""
+        <div id="legal-code-body">
+          <p>{lead}3(a)(1)(A)(i). applies.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            f"{lead}3(a)(1)(A)\n"
+            "(i). applies.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_notice_asides(self):
         html = """
         <div id="about-cc-and-license" class="notice-top">
@@ -318,6 +347,24 @@ class PlainTextUtilsTest(SimpleTestCase):
 
         self.assertTrue(lines[0].startswith("   - "))
         self.assertTrue(all(line.startswith("     ") for line in lines[1:]))
+
+    def test_legal_code_html_to_plain_text_wraps_section_references_in_lists(
+        self,
+    ):
+        lead = f"{'x' * 56} Section "
+        html = f"""
+        <div id="legal-code-body">
+          <ol>
+            <li>{lead}2(b)(1) applies.</li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            f"  1. {lead}2\n"
+            "     (b)(1) applies.\n",
+            legal_code_html_to_plain_text(html),
+        )
 
     def test_legal_code_html_to_plain_text_replaces_en_dash(self):
         html = """
