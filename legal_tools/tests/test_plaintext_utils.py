@@ -248,6 +248,44 @@ class PlainTextUtilsTest(SimpleTestCase):
             legal_code_html_to_plain_text(html),
         )
 
+    def test_legal_code_html_to_plain_text_list_item_paragraph_spacing(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a" start="2">
+            <li>
+              <strong>ShareAlike</strong>.
+              <p>In addition, the following conditions also apply.</p>
+              <ol>
+                <li>Nested condition</li>
+              </ol>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  b. ShareAlike.\n\n"
+            "     In addition, the following conditions also apply.\n\n"
+            "       1. Nested condition\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_list_item_first_paragraph(self):
+        html = """
+        <div id="legal-code-body">
+          <ol>
+            <li>
+              <p>Only paragraph.</p>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  1. Only paragraph.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_unordered_list(self):
         html = """
         <div id="legal-code-body">

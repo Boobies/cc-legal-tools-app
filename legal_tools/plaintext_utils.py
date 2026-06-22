@@ -277,12 +277,15 @@ def _render_list_item(prefix, content_indent, chunks):
     for index, (kind, content) in enumerate(chunks):
         if (
             index > 0
-            and (kind == "block" or previous_kind == "block")
+            and (
+                _is_list_item_block_like(kind)
+                or _is_list_item_block_like(previous_kind)
+            )
             and lines
             and lines[-1] != ""
         ):
             lines.append("")
-        if kind == "text":
+        if kind in {"text", "paragraph"}:
             if index == 0:
                 rendered = _wrap_text(
                     content,
@@ -298,6 +301,10 @@ def _render_list_item(prefix, content_indent, chunks):
             lines.extend(content.splitlines())
         previous_kind = kind
     return lines
+
+
+def _is_list_item_block_like(kind):
+    return kind in {"block", "paragraph"}
 
 
 def _render_list_item_chunks(list_item, content_indent):
@@ -327,7 +334,7 @@ def _render_list_item_chunks(list_item, content_indent):
             ):
                 rendered = _render_inline_children(child)
                 if rendered:
-                    chunks.append(("text", rendered))
+                    chunks.append(("paragraph", rendered))
             else:
                 rendered = _render_block(
                     child, indent=content_indent
