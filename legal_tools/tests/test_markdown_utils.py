@@ -92,6 +92,21 @@ class MarkdownUtilsTest(SimpleTestCase):
             legal_code_html_to_markdown(html),
         )
 
+    def test_legal_code_html_to_markdown_escapes_link_syntax(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            <a href="/policies/some path(1)">Policy [draft]</a>
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "[Policy \\[draft\\]]"
+            "(<https://creativecommons.org/policies/some path(1)>)\n",
+            legal_code_html_to_markdown(html),
+        )
+
     def test_legal_code_html_to_markdown_uppercase_list_and_emphasis(self):
         html = """
         <div id="legal-code-body">

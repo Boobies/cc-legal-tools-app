@@ -2,16 +2,29 @@
 from dataclasses import dataclass
 import re
 import textwrap
-from urllib.parse import urlsplit
 
 # Third-party
-from bs4 import BeautifulSoup, NavigableString, Tag
-from bs4.element import Comment
+from bs4 import NavigableString, Tag
 
 # First-party/Local
-from legal_tools.link_utils import absolute_link_url
+from legal_tools.link_utils import display_link_label_url, display_link_url
+from legal_tools.render_utils import (
+    BLOCK_TAGS,
+    HEADING_TAGS,
+    IGNORED_TAGS,
+    LIST_TAGS,
+    TEXT_LINE_LENGTH,
+    clean_inline_spacing,
+    direct_children,
+    has_class,
+    has_direct_block_child,
+    is_ignorable,
+    is_tag,
+    legal_code_root,
+    non_ignorable_children,
+)
 
-PLAIN_TEXT_LINE_LENGTH = 71
+PLAIN_TEXT_LINE_LENGTH = TEXT_LINE_LENGTH
 PLAIN_TEXT_SEPARATOR = "=" * PLAIN_TEXT_LINE_LENGTH
 LIST_MIN_PREFIX_WIDTH = 5
 NOTICE_ASIDE_INDENT = 5
@@ -21,38 +34,13 @@ _SECTION_REFERENCE_RE = re.compile(
     r"([.,;:!?]*)$"
 )
 _SECTION_REFERENCE_PART_RE = re.compile(r"\([A-Za-z0-9]+\)")
-_IGNORED_TAGS = {"script", "style", "hr"}
-_HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
-_LIST_TAGS = {"ol", "ul"}
+_IGNORED_TAGS = IGNORED_TAGS | {"hr"}
 _LIST_CHUNK_TEXT = "text"
 _LIST_CHUNK_RENDERED = "rendered"
 _NOTICE_ASIDE_CLASSES = {"level", "is-vcentered", "b-header"}
-_DOMAIN_LIKE_URL_RE = re.compile(
-    r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?::\d+)?(?=[/?#]|$)"
-)
-_EMAIL_LIKE_URL_RE = re.compile(
-    r"^[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
-)
 _SKIPPED_NOTICE_HEADING_PARENT_IDS = {
     "notice-about-licenses-and-cc",
     "notice-about-cc-and-trademark",
-}
-
-BLOCK_TAGS = {
-    "article",
-    "blockquote",
-    "div",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "li",
-    "ol",
-    "p",
-    "section",
-    "ul",
 }
 
 
@@ -83,12 +71,9 @@ def legal_code_html_to_plain_text(html):
     HTML/CSS use for visual separation, and it renders ordered-list markers
     explicitly because plain text has no list semantics.
     """
-    soup = BeautifulSoup(html, "lxml")
-    legal_code_document = soup.find(id="legal-code-document")
-    legal_code_body = soup.find(id="legal-code-body")
-    root = legal_code_document or legal_code_body or soup.body or soup
+    root = legal_code_root(html)
     context = _build_render_context(root)
-    if legal_code_document:
+    if isinstance(root, Tag) and root.get("id") == "legal-code-document":
         plain_text = _render_document(root, context).strip("\n")
     else:
         plain_text = _render_block(root, context).strip("\n")
@@ -101,7 +86,7 @@ def legal_code_html_to_plain_text(html):
 def _build_render_context(root):
     longest_marker = 0
     for list_tag in root.find_all("ol"):
-        list_items = _direct_children(list_tag, "li")
+        list_items = direct_children(list_tag, "li")
         start = _get_start(list_tag, len(list_items))
         for offset, _list_item in enumerate(list_items):
             number = (
@@ -127,7 +112,7 @@ def _render_document(document, context):
         current_region = None
         current_chunks = []
 
-    for child in _non_ignorable_children(document):
+    for child in non_ignorable_children(document):
         region = _document_region(child)
         rendered = _render_block(child, context)
         if _preserves_trailing_spacing(child):
@@ -149,17 +134,17 @@ def _document_region(node):
         tag_name = node.name.lower()
         if tag_name == "h1":
             return "title"
-        if _has_class(node, "notice-top"):
+        if has_class(node, "notice-top"):
             return "preface"
         if node.get("id") == "legal-code-body":
             return "body"
-        if _has_class(node, "notice-bottom"):
+        if has_class(node, "notice-bottom"):
             return "footer"
     return "other"
 
 
 def _render_block(node, context, indent=0):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return _wrap_text(_clean_inline(str(node)), indent=indent)
@@ -171,17 +156,17 @@ def _render_block(node, context, indent=0):
         return ""
     if _is_skipped_notice_heading(node):
         return ""
-    if tag_name in _HEADING_TAGS:
+    if tag_name in HEADING_TAGS:
         return _wrap_text(_render_inline_children(node), indent=indent)
     if tag_name == "p":
         return _wrap_text(_render_inline_children(node), indent=indent)
-    if tag_name in _LIST_TAGS:
+    if tag_name in LIST_TAGS:
         return _render_list(node, context, indent=indent)
     if node.get("id") == "legal-code-body":
         return _render_legal_code_body(node, context, indent=indent)
     if node.get("id") == "about-cc-and-license":
         return _render_about_cc_and_license(node, context, indent=indent)
-    if _has_direct_block_child(node):
+    if has_direct_block_child(node):
         return _render_block_children(node, context, indent=indent)
     return _wrap_text(_render_inline_children(node), indent=indent)
 
@@ -232,7 +217,7 @@ def _legal_code_body_groups(node):
             groups.append((current_is_section, current_group))
             current_group = []
 
-    for child in _non_ignorable_children(node):
+    for child in non_ignorable_children(node):
         if _is_legal_section_heading(child):
             flush_group()
             current_group = [child]
@@ -246,7 +231,7 @@ def _legal_code_body_groups(node):
 def _render_about_cc_and_license(node, context, indent=0):
     chunks = []
     ordinary_nodes = []
-    children = _non_ignorable_children(node)
+    children = non_ignorable_children(node)
     index = 0
 
     def flush_ordinary_nodes():
@@ -284,7 +269,7 @@ def _render_about_cc_and_license(node, context, indent=0):
 
 def _is_notice_aside_heading(node):
     return (
-        _is_tag(node, "h3")
+        is_tag(node, "h3")
         and _NOTICE_ASIDE_CLASSES.issubset(set(node.get("class", [])))
     )
 
@@ -324,7 +309,7 @@ def _render_notice_aside(nodes, context, indent=0):
 
 
 def _render_notice_aside_text(node, context):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return _clean_inline(str(node))
@@ -334,7 +319,7 @@ def _render_notice_aside_text(node, context):
     tag_name = node.name.lower()
     if tag_name in _IGNORED_TAGS:
         return ""
-    if not _has_direct_block_child(node):
+    if not has_direct_block_child(node):
         return _render_inline_children(node)
     return _clean_inline(_render_block(node, context))
 
@@ -342,7 +327,7 @@ def _render_notice_aside_text(node, context):
 def _render_list(list_tag, context, indent=0):
     rendered_items = []
     is_ordered = list_tag.name.lower() == "ol"
-    list_items = _direct_children(list_tag, "li")
+    list_items = direct_children(list_tag, "li")
     start = _get_start(list_tag, len(list_items))
     for offset, list_item in enumerate(list_items):
         if is_ordered:
@@ -400,13 +385,13 @@ def _render_list_item_chunks(list_item, context, content_indent):
         if content:
             chunks.append((_LIST_CHUNK_TEXT, content))
 
-    for child in _non_ignorable_children(list_item):
+    for child in non_ignorable_children(list_item):
         if isinstance(child, Tag) and child.name.lower() == "div":
             flush_inline_nodes()
             chunks.extend(
                 _render_list_item_chunks(child, context, content_indent)
             )
-        elif isinstance(child, Tag) and child.name.lower() in _LIST_TAGS:
+        elif isinstance(child, Tag) and child.name.lower() in LIST_TAGS:
             flush_inline_nodes()
             rendered = _strip_rendered(
                 _render_list(child, context, indent=content_indent)
@@ -415,7 +400,7 @@ def _render_list_item_chunks(list_item, context, content_indent):
                 chunks.append((_LIST_CHUNK_RENDERED, rendered))
         elif isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS:
             flush_inline_nodes()
-            if child.name.lower() == "p" and not _has_direct_block_child(
+            if child.name.lower() == "p" and not has_direct_block_child(
                 child
             ):
                 rendered = _render_inline_children(child)
@@ -520,7 +505,7 @@ def _render_inline_nodes(nodes):
 
 
 def _render_inline(node):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return str(node)
@@ -539,9 +524,9 @@ def _render_inline(node):
 
     if tag_name == "a":
         href = node.get("href")
-        display_url = _display_link_url(href)
+        display_url = display_link_url(href)
         if display_url:
-            label_url = _display_link_label_url(content)
+            label_url = display_link_label_url(content)
             if label_url == display_url:
                 return display_url
             label = content.rstrip(".!?")
@@ -554,58 +539,6 @@ def _render_inline(node):
 
 def _render_inline_children(node):
     return _render_inline_nodes(node.children)
-
-
-def _display_link_url(href):
-    if not href:
-        return ""
-    href = href.strip()
-    if not href or href.startswith("#"):
-        return ""
-    return _display_url(href)
-
-
-def _display_link_label_url(label):
-    label = label.strip().rstrip(".!?")
-    if not _looks_like_url(label):
-        return ""
-    return _display_url(label)
-
-
-def _display_url(value):
-    value = value.strip()
-    if not value:
-        return ""
-    if value.lower().startswith("mailto:"):
-        email = value[7:].split("?", 1)[0].split("#", 1)[0]
-        return email.strip()
-    if _EMAIL_LIKE_URL_RE.match(value):
-        return value
-
-    normalized = _absolute_http_url(value)
-    if not normalized:
-        return value.split("?", 1)[0].split("#", 1)[0]
-
-    parts = urlsplit(normalized)
-    path = parts.path or ""
-    display_url = f"{parts.netloc}{path}"
-    return display_url.rstrip("/") or parts.netloc
-
-
-def _absolute_http_url(value):
-    value = absolute_link_url(value)
-    parts = urlsplit(value)
-    if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
-        return ""
-    return value
-
-
-def _looks_like_url(value):
-    return (
-        value.startswith(("http://", "https://", "//", "/", "mailto:"))
-        or bool(_DOMAIN_LIKE_URL_RE.match(value))
-        or bool(_EMAIL_LIKE_URL_RE.match(value))
-    )
 
 
 def _wrap_text(
@@ -656,53 +589,23 @@ def _clean_inline(value):
     value = value.replace("\u2019", "'")
     value = value.replace("\u201c", '"')
     value = value.replace("\u201d", '"')
-    value = re.sub(r"\s+", " ", value)
-    value = re.sub(r"\s+([,.;:!?%)\]])", r"\1", value)
-    value = re.sub(r"([(\[])\s+", r"\1", value)
-    return value.strip()
+    return clean_inline_spacing(value)
 
 
 def _restore_plain_text_tokens(value):
     return value.replace(EN_DASH_PLACEHOLDER, "--")
 
 
-def _has_direct_block_child(node):
-    return any(
-        isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS
-        for child in node.children
-    )
-
-
-def _non_ignorable_children(node):
-    return [child for child in node.children if not _is_ignorable(child)]
-
-
-def _direct_children(node, tag_name):
-    return [
-        child
-        for child in node.children
-        if isinstance(child, Tag) and child.name.lower() == tag_name
-    ]
-
-
-def _is_tag(node, tag_name):
-    return isinstance(node, Tag) and node.name.lower() == tag_name
-
-
-def _has_class(node, class_name):
-    return class_name in node.get("class", [])
-
-
 def _is_divider(node):
-    return _is_tag(node, "hr") and _has_class(node, "divider")
+    return is_tag(node, "hr") and has_class(node, "divider")
 
 
 def _is_legal_section_heading(node):
-    return _is_tag(node, "h3") and re.fullmatch(r"s\d+", node.get("id", ""))
+    return is_tag(node, "h3") and re.fullmatch(r"s\d+", node.get("id", ""))
 
 
 def _is_skipped_notice_heading(node):
-    if not _is_tag(node, "h2"):
+    if not is_tag(node, "h2"):
         return False
     parent = node.parent
     return (
@@ -722,11 +625,3 @@ def _has_bold_font_weight(node):
 
 def _preserves_trailing_spacing(node):
     return isinstance(node, Tag) and node.get("id") == "legal-code-body"
-
-
-def _is_ignorable(node):
-    if isinstance(node, Comment):
-        return True
-    if isinstance(node, NavigableString):
-        return not str(node).strip()
-    return False

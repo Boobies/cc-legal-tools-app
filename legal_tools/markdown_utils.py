@@ -1,35 +1,27 @@
 # Standard library
-import re
 import textwrap
 from html import escape
 
 # Third-party
-from bs4 import BeautifulSoup, NavigableString, Tag
-from bs4.element import Comment
+from bs4 import NavigableString, Tag
 
 # First-party/Local
-from legal_tools.link_utils import absolute_link_url
+from legal_tools.link_utils import absolute_link_url, markdown_link
+from legal_tools.render_utils import (
+    BLOCK_TAGS,
+    HEADING_TAGS,
+    IGNORED_TAGS,
+    LIST_TAGS,
+    TEXT_LINE_LENGTH,
+    clean_inline_spacing,
+    direct_children,
+    has_direct_block_child,
+    is_ignorable,
+    legal_code_root,
+)
 
-BLOCK_TAGS = {
-    "article",
-    "blockquote",
-    "div",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "li",
-    "ol",
-    "p",
-    "section",
-    "ul",
-}
-MARKDOWN_LINE_LENGTH = 71
+MARKDOWN_LINE_LENGTH = TEXT_LINE_LENGTH
 HTML_LIST_INDENT = 2
-LIST_TAGS = {"ol", "ul"}
-IGNORED_TAGS = {"script", "style"}
 
 
 def legal_code_html_to_markdown(html):
@@ -40,10 +32,7 @@ def legal_code_html_to_markdown(html):
     as native Markdown when Markdown can preserve the list semantics, and as
     raw HTML when attributes such as alpha or roman markers require it.
     """
-    soup = BeautifulSoup(html, "lxml")
-    legal_code_document = soup.find(id="legal-code-document")
-    legal_code_body = soup.find(id="legal-code-body")
-    root = legal_code_document or legal_code_body or soup.body or soup
+    root = legal_code_root(html)
     markdown = _render_block(root).strip()
     if not markdown:
         return ""
@@ -51,17 +40,19 @@ def legal_code_html_to_markdown(html):
 
 
 def _render_block(node, indent=0):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
-        return _wrap_markdown_text(_clean_inline(str(node)), indent=indent)
+        return _wrap_markdown_text(
+            clean_inline_spacing(str(node)), indent=indent
+        )
     if not isinstance(node, Tag):
         return ""
 
     tag_name = node.name.lower()
     if tag_name in IGNORED_TAGS:
         return ""
-    if tag_name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+    if tag_name in HEADING_TAGS:
         level = int(tag_name[1])
         content = _render_inline_children(node)
         if content:
@@ -71,7 +62,7 @@ def _render_block(node, indent=0):
         return _wrap_markdown_text(_render_inline_children(node), indent=indent)
     if tag_name in LIST_TAGS:
         return _render_list(node, indent=indent)
-    if _has_direct_block_child(node):
+    if has_direct_block_child(node):
         return _render_block_children(node, indent=indent)
     return _wrap_markdown_text(_render_inline_children(node), indent=indent)
 
@@ -95,7 +86,7 @@ def _render_markdown_list(list_tag, indent=0):
     lines = []
     is_ordered = list_tag.name.lower() == "ol"
     start = _get_ordered_list_start(list_tag) if is_ordered else None
-    for offset, list_item in enumerate(_direct_children(list_tag, "li")):
+    for offset, list_item in enumerate(direct_children(list_tag, "li")):
         marker = f"{start + offset}." if is_ordered else "-"
         prefix = f"{' ' * indent}{marker} "
         content_indent = indent + len(marker) + 1
@@ -148,7 +139,7 @@ def _render_markdown_list_item_chunks(list_item, indent=0):
             chunks.append(("text", content))
 
     for child in list_item.children:
-        if _is_ignorable(child):
+        if is_ignorable(child):
             continue
         if isinstance(child, Tag) and child.name.lower() == "div":
             flush_inline_nodes()
@@ -162,7 +153,7 @@ def _render_markdown_list_item_chunks(list_item, indent=0):
                 chunks.append(("rendered", rendered))
         elif isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS:
             flush_inline_nodes()
-            if child.name.lower() == "p" and not _has_direct_block_child(
+            if child.name.lower() == "p" and not has_direct_block_child(
                 child
             ):
                 rendered = _render_inline_children(child)
@@ -185,7 +176,7 @@ def _render_html_list(list_tag, indent=0):
     list_item_indent = " " * (indent + HTML_LIST_INDENT)
     content_indent = indent + (2 * HTML_LIST_INDENT)
     lines = [f"{list_indent}<{tag_name}{attrs}>"]
-    for list_item in _direct_children(list_tag, "li"):
+    for list_item in direct_children(list_tag, "li"):
         content = _render_html_list_item(list_item)
         if not content:
             lines.append(f"{list_item_indent}<li></li>")
@@ -257,7 +248,7 @@ def _render_html_list_item(list_item, indent=0):
             chunks.append(_wrap_html_text(content, indent=indent))
 
     for child in list_item.children:
-        if _is_ignorable(child):
+        if is_ignorable(child):
             continue
         if isinstance(child, Tag) and child.name.lower() == "div":
             flush_inline_nodes()
@@ -285,11 +276,12 @@ def _render_html_list_item(list_item, indent=0):
 
 
 def _render_html_block(node, indent=0):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return _wrap_html_text(
-            escape(_clean_inline(str(node)), quote=False), indent=indent
+            escape(clean_inline_spacing(str(node)), quote=False),
+            indent=indent,
         )
     if not isinstance(node, Tag):
         return ""
@@ -304,7 +296,7 @@ def _render_html_block(node, indent=0):
     if tag_name == "div":
         return _render_html_container_children(node, indent=indent)
 
-    if _has_direct_block_child(node):
+    if has_direct_block_child(node):
         content = "\n".join(
             rendered
             for child in node.children
@@ -341,15 +333,17 @@ def _wrap_html_tag(tag_name, content, indent=0, content_indented=False):
 
 
 def _render_html_inline_nodes(nodes):
-    return _clean_inline("".join(_render_html_inline(node) for node in nodes))
+    return clean_inline_spacing(
+        "".join(_render_html_inline(node) for node in nodes)
+    )
 
 
 def _render_inline_nodes(nodes):
-    return _clean_inline("".join(_render_inline(node) for node in nodes))
+    return clean_inline_spacing("".join(_render_inline(node) for node in nodes))
 
 
 def _render_html_inline(node):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return escape(str(node), quote=False)
@@ -388,7 +382,7 @@ def _render_html_inline_children(node):
 
 
 def _render_inline(node):
-    if _is_ignorable(node):
+    if is_ignorable(node):
         return ""
     if isinstance(node, NavigableString):
         return str(node)
@@ -412,7 +406,7 @@ def _render_inline(node):
     if tag_name == "a":
         href = node.get("href")
         if href:
-            return f"[{content}]({absolute_link_url(href)})"
+            return markdown_link(content, href)
         return content
     if tag_name == "u" or _is_underline_span(node):
         return f"<u>{content}</u>"
@@ -422,7 +416,7 @@ def _render_inline(node):
 
 
 def _render_inline_children(node):
-    return _clean_inline(
+    return clean_inline_spacing(
         "".join(_render_inline(child) for child in node.children)
     )
 
@@ -469,38 +463,8 @@ def _strip_rendered(value):
     return value
 
 
-def _clean_inline(value):
-    value = re.sub(r"\s+", " ", value)
-    value = re.sub(r"\s+([,.;:!?%)\]])", r"\1", value)
-    value = re.sub(r"([(\[])\s+", r"\1", value)
-    return value.strip()
-
-
-def _has_direct_block_child(node):
-    return any(
-        isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS
-        for child in node.children
-    )
-
-
-def _direct_children(node, tag_name):
-    return [
-        child
-        for child in node.children
-        if isinstance(child, Tag) and child.name.lower() == tag_name
-    ]
-
-
 def _is_underline_span(node):
     if node.name.lower() != "span":
         return False
     style = node.get("style", "").lower().replace(" ", "")
     return "text-decoration:underline" in style
-
-
-def _is_ignorable(node):
-    if isinstance(node, Comment):
-        return True
-    if isinstance(node, NavigableString):
-        return not str(node).strip()
-    return False
