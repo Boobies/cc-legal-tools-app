@@ -658,7 +658,7 @@ class PlainTextUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "See Section 1 and example: https://example.test/.\n",
+            "See Section 1 and example: example.test.\n",
             legal_code_html_to_plain_text(html),
         )
 
@@ -672,6 +672,79 @@ class PlainTextUtilsTest(SimpleTestCase):
         """
 
         self.assertEqual(
-            "Read the full document. https://example.test/\n",
+            "Read the full document: example.test\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_matching_link_label(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            Creative Commons may be contacted at
+            <a href="//creativecommons.org/">creativecommons.org</a>.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Creative Commons may be contacted at creativecommons.org.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_root_relative_link(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            See <a href="/policies/">creativecommons.org/policies</a>.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "See creativecommons.org/policies.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_link_strips_query_fragment(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            See
+            <a href="https://example.test/path/?x=1#part">details</a>.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "See details: example.test/path.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_root_relative_link_label(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            See <a href="/policies/#license">noted</a>.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "See noted: creativecommons.org/policies.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_mailto_matching_label(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            Email <a href="mailto:info@creativecommons.org">
+            info@creativecommons.org</a>.
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Email info@creativecommons.org.\n",
             legal_code_html_to_plain_text(html),
         )

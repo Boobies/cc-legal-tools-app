@@ -60,6 +60,38 @@ class MarkdownUtilsTest(SimpleTestCase):
             legal_code_html_to_markdown(html),
         )
 
+    def test_legal_code_html_to_markdown_normalizes_base_less_links(self):
+        html = """
+        <div id="legal-code-body">
+          <p><a href="/policies/">policies</a></p>
+          <p>
+            <a href="//creativecommons.org/compatiblelicenses">
+            compatible licenses</a>
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "[policies](https://creativecommons.org/policies/)\n\n"
+            "[compatible licenses]"
+            "(https://creativecommons.org/compatiblelicenses)\n",
+            legal_code_html_to_markdown(html),
+        )
+
+    def test_legal_code_html_to_markdown_preserves_absolute_link_parts(self):
+        html = """
+        <div id="legal-code-body">
+          <p>
+            <a href="https://example.test/path/?x=1#part">details</a>
+          </p>
+        </div>
+        """
+
+        self.assertEqual(
+            "[details](https://example.test/path/?x=1#part)\n",
+            legal_code_html_to_markdown(html),
+        )
+
     def test_legal_code_html_to_markdown_uppercase_list_and_emphasis(self):
         html = """
         <div id="legal-code-body">
@@ -198,6 +230,23 @@ class MarkdownUtilsTest(SimpleTestCase):
         self.assertIn("**strong emphasis**", markdown)
         self.assertIn("*emphasis text*", markdown)
         self.assertTrue(all(len(line) <= 71 for line in markdown.splitlines()))
+
+    def test_legal_code_html_to_markdown_normalizes_links_in_html_lists(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li><a href="/policies/">policies</a></li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            '<ol type="a">\n'
+            '  <li><a href="https://creativecommons.org/policies/">'
+            "policies</a></li>\n"
+            "</ol>\n",
+            legal_code_html_to_markdown(html),
+        )
 
     def test_legal_code_html_to_markdown_wraps_html_list_items(self):
         text = (

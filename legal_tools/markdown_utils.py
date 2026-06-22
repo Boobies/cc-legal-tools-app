@@ -7,6 +7,9 @@ from html import escape
 from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import Comment
 
+# First-party/Local
+from legal_tools.link_utils import absolute_link_url
+
 BLOCK_TAGS = {
     "article",
     "blockquote",
@@ -370,7 +373,7 @@ def _render_html_inline(node):
     if tag_name == "a":
         href = node.get("href")
         if href:
-            href = escape(href, quote=True)
+            href = escape(absolute_link_url(href), quote=True)
             return f'<a href="{href}">{content}</a>'
         return content
     if tag_name == "u" or _is_underline_span(node):
@@ -409,7 +412,7 @@ def _render_inline(node):
     if tag_name == "a":
         href = node.get("href")
         if href:
-            return f"[{content}]({href})"
+            return f"[{content}]({absolute_link_url(href)})"
         return content
     if tag_name == "u" or _is_underline_span(node):
         return f"<u>{content}</u>"

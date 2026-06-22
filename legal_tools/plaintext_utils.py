@@ -2,10 +2,14 @@
 from dataclasses import dataclass
 import re
 import textwrap
+from urllib.parse import urlsplit
 
 # Third-party
 from bs4 import BeautifulSoup, NavigableString, Tag
 from bs4.element import Comment
+
+# First-party/Local
+from legal_tools.link_utils import absolute_link_url
 
 PLAIN_TEXT_LINE_LENGTH = 71
 PLAIN_TEXT_SEPARATOR = "=" * PLAIN_TEXT_LINE_LENGTH
@@ -23,6 +27,12 @@ _LIST_TAGS = {"ol", "ul"}
 _LIST_CHUNK_TEXT = "text"
 _LIST_CHUNK_RENDERED = "rendered"
 _NOTICE_ASIDE_CLASSES = {"level", "is-vcentered", "b-header"}
+_DOMAIN_LIKE_URL_RE = re.compile(
+    r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?::\d+)?(?=[/?#]|$)"
+)
+_EMAIL_LIKE_URL_RE = re.compile(
+    r"^[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+)
 _SKIPPED_NOTICE_HEADING_PARENT_IDS = {
     "notice-about-licenses-and-cc",
     "notice-about-cc-and-trademark",
@@ -529,16 +539,73 @@ def _render_inline(node):
 
     if tag_name == "a":
         href = node.get("href")
-        if href and not href.startswith("#"):
-            if content[-1] in ".!?":
-                return f"{content} {href}"
-            return f"{content}: {href}"
+        display_url = _display_link_url(href)
+        if display_url:
+            label_url = _display_link_label_url(content)
+            if label_url == display_url:
+                return display_url
+            label = content.rstrip(".!?")
+            if label.endswith(":"):
+                return f"{label} {display_url}"
+            return f"{label}: {display_url}"
         return content
     return content
 
 
 def _render_inline_children(node):
     return _render_inline_nodes(node.children)
+
+
+def _display_link_url(href):
+    if not href:
+        return ""
+    href = href.strip()
+    if not href or href.startswith("#"):
+        return ""
+    return _display_url(href)
+
+
+def _display_link_label_url(label):
+    label = label.strip().rstrip(".!?")
+    if not _looks_like_url(label):
+        return ""
+    return _display_url(label)
+
+
+def _display_url(value):
+    value = value.strip()
+    if not value:
+        return ""
+    if value.lower().startswith("mailto:"):
+        email = value[7:].split("?", 1)[0].split("#", 1)[0]
+        return email.strip()
+    if _EMAIL_LIKE_URL_RE.match(value):
+        return value
+
+    normalized = _absolute_http_url(value)
+    if not normalized:
+        return value.split("?", 1)[0].split("#", 1)[0]
+
+    parts = urlsplit(normalized)
+    path = parts.path or ""
+    display_url = f"{parts.netloc}{path}"
+    return display_url.rstrip("/") or parts.netloc
+
+
+def _absolute_http_url(value):
+    value = absolute_link_url(value)
+    parts = urlsplit(value)
+    if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
+        return ""
+    return value
+
+
+def _looks_like_url(value):
+    return (
+        value.startswith(("http://", "https://", "//", "/", "mailto:"))
+        or bool(_DOMAIN_LIKE_URL_RE.match(value))
+        or bool(_EMAIL_LIKE_URL_RE.match(value))
+    )
 
 
 def _wrap_text(
