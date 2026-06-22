@@ -21,7 +21,7 @@ class PlainTextUtilsTest(SimpleTestCase):
             <h2>Using</h2>
             <p>More preface text.</p>
             <hr class="divider">
-            <h3>Internal</h3>
+            <h3 class="level is-vcentered b-header">Internal</h3>
             <p>Internal notice text.</p>
           </div>
           <div id="legal-code-body">
@@ -154,13 +154,13 @@ class PlainTextUtilsTest(SimpleTestCase):
           <h2>Using</h2>
           <p>Intro text.</p>
           <hr class="divider">
-          <h3>Licensors</h3>
+          <h3 class="level is-vcentered b-header">Licensors</h3>
           <p>
             Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda
             mu nu.
           </p>
           <hr class="divider">
-          <h3>Public</h3>
+          <h3 class="level is-vcentered b-header">Public</h3>
           <p>Gamma delta.</p>
         </div>
         """
@@ -196,6 +196,66 @@ class PlainTextUtilsTest(SimpleTestCase):
         self.assertEqual(
             "Using\n\n"
             "Fallback text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_plain_notice_h3(self):
+        html = """
+        <div id="about-cc-and-license" class="notice-top">
+          <h2>Using</h2>
+          <hr class="divider">
+          <h3>Plain Heading</h3>
+          <p>Fallback text.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Using\n\n"
+            "Plain Heading\n\n"
+            "Fallback text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_notice_aside_without_divider(self):
+        html = """
+        <div id="about-cc-and-license" class="notice-top">
+          <h2>Using</h2>
+          <p>Intro text.</p>
+          <h3 class="level is-vcentered b-header">Licensors</h3>
+          <p>Aside text.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Using\n\n"
+            "Intro text.\n\n"
+            "     Licensors: Aside text.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_notice_aside_stops(self):
+        html = """
+        <div id="about-cc-and-license" class="notice-top">
+          <h2>Using</h2>
+          <h3 class="level is-vcentered b-header">Licensors</h3>
+          <p>Aside text.</p>
+          <h2>Next</h2>
+          <p>Normal text.</p>
+          <hr class="divider">
+          <h3 class="level is-vcentered b-header">Public</h3>
+          <p>Public text.</p>
+          <hr class="divider">
+          <p>After divider.</p>
+        </div>
+        """
+
+        self.assertEqual(
+            "Using\n\n"
+            "     Licensors: Aside text.\n\n"
+            "Next\n\n"
+            "Normal text.\n\n"
+            "     Public: Public text.\n\n"
+            "After divider.\n",
             legal_code_html_to_plain_text(html),
         )
 

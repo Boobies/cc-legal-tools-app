@@ -196,29 +196,61 @@ def _legal_code_body_groups(node):
 
 def _render_about_cc_and_license(node, indent=0):
     chunks = []
-    for after_divider, group in _divider_groups(node):
-        if not group:
-            continue
-        if after_divider and _is_tag(group[0], "h3"):
-            rendered = _render_notice_aside(group, indent=indent)
-        else:
-            rendered = _render_block_nodes(group, indent=indent)
+    ordinary_nodes = []
+    children = [child for child in node.children if not _is_ignorable(child)]
+    index = 0
+
+    def flush_ordinary_nodes():
+        if not ordinary_nodes:
+            return
+        rendered = _render_block_nodes(ordinary_nodes, indent=indent)
         rendered = rendered.strip("\n")
         if rendered.strip():
             chunks.append(rendered)
+        ordinary_nodes.clear()
+
+    while index < len(children):
+        child = children[index]
+        if _is_notice_aside_heading(child):
+            flush_ordinary_nodes()
+            notice_nodes = [child]
+            index += 1
+            while index < len(children) and not _is_notice_aside_terminator(
+                children[index]
+            ):
+                notice_nodes.append(children[index])
+                index += 1
+            rendered = _render_notice_aside(notice_nodes, indent=indent)
+            rendered = rendered.strip("\n")
+            if rendered.strip():
+                chunks.append(rendered)
+            continue
+        if not _is_divider(child):
+            ordinary_nodes.append(child)
+        index += 1
+
+    flush_ordinary_nodes()
     return "\n\n".join(chunks)
 
 
-def _divider_groups(node):
-    groups = [[False, []]]
-    for child in node.children:
-        if _is_ignorable(child):
-            continue
-        if _is_divider(child):
-            groups.append([True, []])
-        else:
-            groups[-1][1].append(child)
-    return groups
+def _is_notice_aside_heading(node):
+    return (
+        _is_tag(node, "h3")
+        and _has_class(node, "level")
+        and _has_class(node, "is-vcentered")
+        and _has_class(node, "b-header")
+    )
+
+
+def _is_notice_aside_terminator(node):
+    return _is_divider(node) or _is_heading_at_or_above(node, level=3)
+
+
+def _is_heading_at_or_above(node, level):
+    if not isinstance(node, Tag):
+        return False
+    match = re.fullmatch(r"h([1-6])", node.name.lower())
+    return bool(match and int(match.group(1)) <= level)
 
 
 def _render_notice_aside(nodes, indent=0):
