@@ -273,19 +273,10 @@ def _render_list(list_tag, indent=0):
 
 def _render_list_item(prefix, content_indent, chunks):
     lines = []
-    previous_kind = None
     for index, (kind, content) in enumerate(chunks):
-        if (
-            index > 0
-            and (
-                _is_list_item_block_like(kind)
-                or _is_list_item_block_like(previous_kind)
-            )
-            and lines
-            and lines[-1] != ""
-        ):
+        if index > 0 and lines and lines[-1] != "":
             lines.append("")
-        if kind in {"text", "paragraph"}:
+        if kind == "text":
             if index == 0:
                 rendered = _wrap_text(
                     content,
@@ -295,16 +286,13 @@ def _render_list_item(prefix, content_indent, chunks):
             else:
                 rendered = _wrap_text(content, indent=content_indent)
             lines.extend(rendered.splitlines())
-        else:
+        elif kind == "rendered":
             if index == 0:
                 lines.append(prefix.rstrip())
             lines.extend(content.splitlines())
-        previous_kind = kind
+        else:
+            raise PlainTextRenderError(f"Unknown list item chunk kind: {kind}")
     return lines
-
-
-def _is_list_item_block_like(kind):
-    return kind in {"block", "paragraph"}
 
 
 def _render_list_item_chunks(list_item, content_indent):
@@ -326,7 +314,7 @@ def _render_list_item_chunks(list_item, content_indent):
             flush_inline_nodes()
             rendered = _render_list(child, indent=content_indent).strip("\n")
             if rendered.strip():
-                chunks.append(("block", rendered))
+                chunks.append(("rendered", rendered))
         elif isinstance(child, Tag) and child.name.lower() in BLOCK_TAGS:
             flush_inline_nodes()
             if child.name.lower() == "p" and not _has_direct_block_child(
@@ -334,13 +322,13 @@ def _render_list_item_chunks(list_item, content_indent):
             ):
                 rendered = _render_inline_children(child)
                 if rendered:
-                    chunks.append(("paragraph", rendered))
+                    chunks.append(("text", rendered))
             else:
                 rendered = _render_block(
                     child, indent=content_indent
                 ).strip("\n")
                 if rendered.strip():
-                    chunks.append(("block", rendered))
+                    chunks.append(("rendered", rendered))
         else:
             inline_nodes.append(child)
     flush_inline_nodes()
