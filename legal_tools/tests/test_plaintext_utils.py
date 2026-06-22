@@ -376,6 +376,46 @@ class PlainTextUtilsTest(SimpleTestCase):
             legal_code_html_to_plain_text(html),
         )
 
+    def test_legal_code_html_to_plain_text_unwraps_div_in_list_item(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li>
+              <div class="padding-left-normal">
+                <strong>Adaptation</strong> means something.
+              </div>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  a. Adaptation means something.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
+    def test_legal_code_html_to_plain_text_unwraps_div_around_blocks(self):
+        html = """
+        <div id="legal-code-body">
+          <ol type="a">
+            <li>
+              <div class="padding-left-normal">
+                <p>Introductory paragraph.</p>
+                <ol type="i">
+                  <li>Nested item.</li>
+                </ol>
+              </div>
+            </li>
+          </ol>
+        </div>
+        """
+
+        self.assertEqual(
+            "  a. Introductory paragraph.\n\n"
+            "       i. Nested item.\n",
+            legal_code_html_to_plain_text(html),
+        )
+
     def test_legal_code_html_to_plain_text_list_item_first_paragraph(self):
         html = """
         <div id="legal-code-body">

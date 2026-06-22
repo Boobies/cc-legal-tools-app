@@ -363,7 +363,10 @@ def _render_list_item_chunks(list_item, content_indent):
             chunks.append((_LIST_CHUNK_TEXT, content))
 
     for child in _non_ignorable_children(list_item):
-        if isinstance(child, Tag) and child.name.lower() in _LIST_TAGS:
+        if isinstance(child, Tag) and child.name.lower() == "div":
+            flush_inline_nodes()
+            chunks.extend(_render_list_item_chunks(child, content_indent))
+        elif isinstance(child, Tag) and child.name.lower() in _LIST_TAGS:
             flush_inline_nodes()
             rendered = _strip_rendered(
                 _render_list(child, indent=content_indent)

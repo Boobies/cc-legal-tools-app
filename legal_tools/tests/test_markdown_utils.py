@@ -100,7 +100,9 @@ class MarkdownUtilsTest(SimpleTestCase):
         <div id="legal-code-body">
           <ol>
             <li>
-              <div><strong>Term</strong> means something.</div>
+              <div class="padding-left-normal">
+                <strong>Term</strong> means something.
+              </div>
             </li>
           </ol>
         </div>
@@ -247,7 +249,9 @@ class MarkdownUtilsTest(SimpleTestCase):
         <div id="legal-code-body">
           <ol type="a">
             <li>
-              <div><strong>Term</strong> means something.</div>
+              <div class="padding-left-normal">
+                <strong>Term</strong> means something.
+              </div>
             </li>
           </ol>
         </div>
@@ -265,7 +269,7 @@ class MarkdownUtilsTest(SimpleTestCase):
         <div id="legal-code-body">
           <ol type="a">
             <li>
-              <div>
+              <div class="padding-left-normal">
                 <p>Introductory paragraph.</p>
                 <ol type="i">
                   <li>Nested item.</li>
