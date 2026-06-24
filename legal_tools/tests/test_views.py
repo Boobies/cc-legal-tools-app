@@ -851,6 +851,7 @@ class ViewLegalCodeTest(TestCase):
             self.assertContains(
                 rsp, f'href="legalcode.{language_code}.txt"'
             )
+            self.assertNotContains(rsp, 'href="legalcode.txt"')
             if language_code == "es":
                 self.assertContains(rsp, 'dir="ltr"')
             elif language_code == "ar":
@@ -1007,39 +1008,6 @@ class ViewLegalCodeTest(TestCase):
         self.assertEqual(lc, context["legal_code"])
         self.assertContains(rsp, f'lang="{language_code}"')
         self.assertContains(rsp, 'dir="ltr"')
-
-    # NOTE: plaintext functionality disabled
-    # def test_view_legal_code_plain_text(self):
-    #     tool = ToolFactory(
-    #         base_url="https://creativecommons.org/licenses/by/4.0/",
-    #         version="4.0",
-    #     )
-    #     for language_code in [settings.LANGUAGE_CODE]:
-    #         lc = LegalCodeFactory(
-    #             tool=tool,
-    #             language_code=language_code,
-    #         )
-    #         url = lc.plain_text_url
-    #         rsp = self.client.get(url)
-    #         self.assertEqual(
-    #             'text/plain; charset="utf-8"',
-    #             rsp._headers["content-type"][1]
-    #         )
-    #         self.assertEqual(200, rsp.status_code)
-    #         self.assertGreater(len(rsp.content.decode()), 0)
-    #     lc = LegalCodeFactory(
-    #         tool__version="3.0",
-    #         language_code="fr",
-    #         tool__unit="by",
-    #         tool__jurisdiction_code="ch",
-    #     )
-    #     url = lc.plain_text_url
-    #     rsp = self.client.get(url)
-    #     self.assertEqual(
-    #         'text/plain; charset="utf-8"', rsp._headers["content-type"][1]
-    #     )
-    #     self.assertEqual(200, rsp.status_code)
-    #     self.assertGreater(len(rsp.content.decode()), 0)
 
     def test_legal_code_translation_by_40_es(self):
         language_code = "es"
